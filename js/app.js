@@ -1,5 +1,5 @@
 // Point d'entrée : routes, thème, service worker.
-import { currentPath, matchRoute, navigate, onRouteChange } from './router.js';
+import { currentPath, isEmbedded, matchRoute, navigate, onRouteChange } from './router.js';
 import { applyTheme, h } from './ui.js';
 import { trimImageCache } from './images.js';
 import { getPrefs } from './store.js';
@@ -82,7 +82,7 @@ async function start() {
   onRouteChange(render);
   render(currentPath());
   requestPersistence();
-  if ('serviceWorker' in navigator && location.protocol === 'https:') {
+  if (!isEmbedded && 'serviceWorker' in navigator && location.protocol === 'https:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});
   }
 }
