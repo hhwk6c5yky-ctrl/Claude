@@ -91,6 +91,8 @@ export function newDeckDialog() {
       return false;
     }
     const deck = await createDeck(name);
+    // Passe par la page du paquet pour que « Retour » / « Terminer » y ramène.
+    navigate(`deck/${deck.id}`);
     navigate(`deck/${deck.id}/card/new`);
     return true;
   };

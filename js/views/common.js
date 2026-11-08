@@ -3,6 +3,7 @@ import { h, icon, lightbox, plural } from '../ui.js';
 import { imageUrl } from '../images.js';
 import { goBack } from '../router.js';
 import { formatDays } from '../srs.js';
+import { mathToPlain, renderRich } from '../math.js';
 
 /**
  * Structure d'un écran : barre du haut + contenu.
@@ -55,9 +56,11 @@ export function cardFace(side, { size = 'normal', zoom = true } = {}) {
     el.append(frame);
   }
   if (text) {
-    const len = text.length;
+    const len = mathToPlain(text).length;
     const cls = len <= 24 && !text.includes('\n') ? 'face-text big' : len > 220 ? 'face-text small' : 'face-text';
-    el.append(h('p', { class: cls }, text));
+    const p = h('p', { class: cls });
+    renderRich(p, text);
+    el.append(p);
   }
   if (!text && !side?.imageId) el.append(h('p.face-text.muted', '(vide)'));
   return el;
@@ -65,7 +68,7 @@ export function cardFace(side, { size = 'normal', zoom = true } = {}) {
 
 /** Résumé court d'une face pour les listes. */
 export function sideSnippet(side) {
-  const t = side?.text?.trim();
+  const t = mathToPlain(side?.text?.trim() || '');
   if (t) return t.length > 90 ? t.slice(0, 88) + '…' : t;
   return side?.imageId ? 'Image' : '—';
 }

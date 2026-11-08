@@ -1,4 +1,5 @@
 // Vérification d'une réponse tapée au clavier (mode « Écrire la réponse »).
+import { mathToPlain } from './math.js';
 
 function base(s) {
   return String(s ?? '')
@@ -37,8 +38,10 @@ export function levenshtein(a, b) {
 export function checkAnswer(typed, expected) {
   const t = base(typed);
   if (!t) return 'wrong';
-  const whole = base(expected);
-  const options = [whole, ...whole.split(/\s*[/;]\s*|\n/).map(base)].filter(Boolean);
+  // Une réponse avec formule ($\alpha$) est aussi acceptée tapée en symboles (α).
+  const raw = String(expected ?? '');
+  const variants = [...new Set([raw, raw.replace(/\$/g, ''), mathToPlain(raw)])].map(base);
+  const options = variants.flatMap((v) => [v, ...v.split(/\s*[/;]\s*|\n/).map(base)]).filter(Boolean);
   if (options.includes(t)) return 'correct';
   const ta = stripAccents(t);
   for (const o of options) {
