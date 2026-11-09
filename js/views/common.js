@@ -54,6 +54,7 @@ function paintSyncBadges() {
     el.setAttribute('aria-label', `Synchronisation : ${label.text}`);
   }
   for (const el of document.querySelectorAll('.sync-text')) el.textContent = label ? label.text : '';
+  for (const el of document.querySelectorAll('.sync-pill')) el.className = `sync-pill tone-${label?.tone || 'busy'}`;
 }
 onSyncStatus(paintSyncBadges);
 

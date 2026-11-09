@@ -48,6 +48,18 @@ GitHub Pages est gratuit pour un dépôt **public**. Pour un dépôt privé, il 
 
 Une fois installée, l'appli s'ouvre en plein écran et marche sans connexion.
 
+## Synchroniser téléphone et ordinateur
+
+**Sur le site GitHub Pages**, Mnémo peut ranger tes cartes dans un dépôt GitHub **privé** :
+
+1. Crée un dépôt privé (par exemple `mnemo-donnees`) sur [github.com/new](https://github.com/new), en cochant *Add a README file*.
+2. Crée une clé d'accès sur [github.com/settings/personal-access-tokens/new](https://github.com/settings/personal-access-tokens/new) : *Only select repositories* → ton dépôt, puis *Contents : Read and write*. Garde la clé (`github_pat_…`) en lieu sûr.
+3. Dans Mnémo, **Réglages → Synchroniser avec GitHub** : indique le dépôt et colle la clé. Fais pareil sur ton autre appareil.
+
+Les changements partent quelques secondes après chaque modification ; ceux des autres appareils arrivent en moins d'une minute. Si une carte est modifiée sur deux appareils, la modification la plus récente l'emporte. La clé n'a accès qu'à ce dépôt ; **Déconnecter cet appareil** l'efface.
+
+**Dans la version claude.ai**, rien à configurer : les cartes sont enregistrées dans ton compte Claude et apparaissent sur tous les appareils où tu ouvres le lien avec le même compte.
+
 ## Sauvegarder ses cartes
 
 Les cartes sont stockées dans le navigateur de l'appareil. Pense à faire régulièrement **Réglages → Tout sauvegarder** : tu obtiens un fichier `.json` à garder dans tes fichiers ou sur un cloud. **Restaurer une sauvegarde** le recharge sur n'importe quel appareil.
@@ -85,6 +97,9 @@ npm test
 | `js/answer.js` | Vérification des réponses écrites |
 | `js/math.js` | Formules : détection des `$…$`, rendu KaTeX, conversion en texte |
 | `js/symbols.js` | Clavier de symboles (grec, maths) |
+| `js/sync-plan.js` | Fusion entre copie locale et copie distante (la plus récente gagne) |
+| `js/sync.js` | Synchronisation : version claude.ai, ou dépôt GitHub sinon |
+| `js/sync-github.js` | Synchronisation par un dépôt GitHub privé (API Contents) |
 | `vendor/katex/` | KaTeX 0.16.11 (licence MIT) |
 | `js/db.js` | Stockage IndexedDB (paquets, cartes, images, historique) |
 | `js/images.js` | Redimensionnement et compression des photos |
