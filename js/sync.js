@@ -12,6 +12,7 @@
 import * as db from './db.js';
 import { planSync } from './sync-plan.js';
 import { checkGithubAccess, parseRepo, startGithubSync } from './sync-github.js';
+import { cleanRepoInput, cleanToken, looksLikeToken, makeConnectLink, parseConnectCode } from './connect-link.js';
 
 const RECONCILE_DELAY = 1200;
 const LOAD_TIMEOUT = 15000;
@@ -43,16 +44,28 @@ export async function getGithubConfig() {
 }
 
 /** Active la synchronisation GitHub sur cet appareil après avoir vérifié l'accès. */
-export async function connectGithub(repoInput, token) {
-  const repo = parseRepo(repoInput);
-  if (!repo) return { ok: false, message: 'Nom de dépôt invalide. Écris-le sous la forme pseudo/nom-du-depot.' };
-  const cleanToken = String(token || '').trim();
-  if (!cleanToken) return { ok: false, message: 'Colle ta clé d’accès GitHub.' };
-  const check = await checkGithubAccess(repo, cleanToken);
+export async function connectGithub(repoInput, tokenInput) {
+  if (mode === 'claude') return { ok: false, message: 'Dans la version claude.ai, la synchronisation est déjà automatique avec ton compte Claude.' };
+  // Le champ de la clé accepte aussi le lien de connexion créé sur un autre appareil.
+  const link = parseConnectCode(tokenInput) || parseConnectCode(repoInput);
+  const repo = parseRepo(cleanRepoInput(link ? link.repo : repoInput));
+  const token = cleanToken(link ? link.token : tokenInput);
+  if (!repo) return { ok: false, message: 'Nom de dépôt invalide. Écris-le sous la forme pseudo/nom-du-depot, par exemple hhwk6c5yky-ctrl/mnemo-donnees.' };
+  if (!token) return { ok: false, message: 'Colle ta clé d’accès GitHub (ou le lien de connexion).' };
+  if (!looksLikeToken(token)) {
+    return { ok: false, message: `La clé collée n’a pas le bon format (${token.length} caractères, commence par « ${token.slice(0, 11)} »). Une clé GitHub commence par github_pat_ et fait environ 93 caractères : elle a sûrement été coupée en la copiant.` };
+  }
+  const check = await checkGithubAccess(repo, token);
   if (!check.ok) return check;
-  await db.setMeta('githubSync', { repo, token: cleanToken });
-  startGithub({ repo, token: cleanToken });
-  return { ok: true, isPrivate: check.isPrivate };
+  await db.setMeta('githubSync', { repo, token });
+  startGithub({ repo, token });
+  return { ok: true, isPrivate: check.isPrivate, repo };
+}
+
+/** Lien à ouvrir sur un autre appareil pour le connecter (contient la clé). */
+export async function getGithubConnectLink() {
+  const cfg = await db.getMeta('githubSync', null);
+  return cfg ? makeConnectLink(cfg.repo, cfg.token) : null;
 }
 
 export async function disconnectGithub() {

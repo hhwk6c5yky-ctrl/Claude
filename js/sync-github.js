@@ -85,8 +85,8 @@ export async function checkGithubAccess(repo, token) {
     }
     return { ok: true, isPrivate: data?.private !== false };
   } catch (e) {
-    if (e.status === 401) return { ok: false, message: 'Clé d’accès refusée : vérifie que tu l’as copiée en entier et qu’elle n’a pas expiré.' };
-    if (e.status === 404) return { ok: false, message: 'Dépôt introuvable : vérifie son nom, et que la clé a bien accès à ce dépôt.' };
+    if (e.status === 401) return { ok: false, message: 'GitHub refuse cette clé : elle a été mal copiée, a expiré ou a été supprimée.' };
+    if (e.status === 404) return { ok: false, message: `GitHub ne trouve pas le dépôt « ${repo} » avec cette clé. Vérifie l’orthographe exacte du dépôt, et que la clé a bien accès à ce dépôt (Only select repositories).` };
     if (e.status === 0) return { ok: false, message: 'Pas de connexion internet.' };
     return { ok: false, message: `GitHub a répondu : ${e.message}` };
   }

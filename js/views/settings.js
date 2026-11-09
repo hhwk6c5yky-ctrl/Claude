@@ -2,10 +2,11 @@ import * as db from '../db.js';
 import { getPrefs, getSettings, savePrefs, saveSettings } from '../store.js';
 import { DEFAULT_SETTINGS } from '../srs.js';
 import { buildBackup, backupFileName, restoreBackup, saveFile } from '../backup.js';
-import { applyTheme, confirmDialog, h, pickFile, plural, toast } from '../ui.js';
+import { applyTheme, confirmDialog, h, modal, pickFile, plural, toast } from '../ui.js';
 import { navigate } from '../router.js';
 import { screen, syncLabel } from './common.js';
-import { connectGithub, disconnectGithub, getGithubConfig, getSyncMode, getSyncStatus, syncNow } from '../sync.js';
+import { connectGithub, disconnectGithub, getGithubConfig, getGithubConnectLink, getSyncMode, getSyncStatus, syncNow } from '../sync.js';
+import { qrImage } from '../qr.js';
 import { clampInt } from './deck.js';
 
 export async function settingsView() {
@@ -202,6 +203,7 @@ async function buildSyncPanel(st, mode) {
       h('p.small.muted', 'Si une même carte est modifiée sur deux appareils, la modification la plus récente l’emporte. Hors connexion, tu peux réviser normalement : tout part au retour du réseau.'),
       h(
         'div.button-row.left',
+        h('button.btn.primary', { type: 'button', onclick: () => showConnectDialog() }, 'Connecter un autre appareil'),
         h('button.btn', { type: 'button', onclick: () => { syncNow(); toast('Synchronisation lancée.'); } }, 'Synchroniser maintenant'),
         h('button.btn.ghost.danger', {
           type: 'button',
@@ -223,8 +225,10 @@ async function buildSyncPanel(st, mode) {
   }
 
   // Pas encore de synchronisation : formulaire de configuration GitHub.
-  const repoInput = h('input.input', { id: 'gh-repo', type: 'text', placeholder: 'pseudo/mnemo-donnees', autocomplete: 'off', autocapitalize: 'off', spellcheck: false });
-  const tokenInput = h('input.input.mono', { id: 'gh-token', type: 'password', placeholder: 'github_pat_…', autocomplete: 'off', autocapitalize: 'off', spellcheck: false });
+  // Pas de type="password" : l'iPhone y propose un « mot de passe fort » à la place de la clé.
+  const noAuto = { autocomplete: 'off', autocapitalize: 'off', autocorrect: 'off', spellcheck: false };
+  const repoInput = h('input.input', { id: 'gh-repo', type: 'text', placeholder: 'pseudo/mnemo-donnees', ...noAuto });
+  const tokenInput = h('input.input.mono', { id: 'gh-token', type: 'text', placeholder: 'github_pat_… ou lien de connexion', ...noAuto });
   const error = h('p.warn', { hidden: true, role: 'alert' });
   const connectBtn = h('button.btn.primary', {
     type: 'button',
@@ -250,6 +254,7 @@ async function buildSyncPanel(st, mode) {
     'section.panel',
     h('h2', 'Synchroniser avec GitHub'),
     h('p', 'Pour retrouver tes cartes sur ton téléphone et ton ordinateur, Mnémo peut les ranger dans un dépôt privé de ton compte GitHub. À configurer une seule fois (environ 5 minutes), puis à connecter sur chaque appareil.'),
+    h('p.tip', h('strong', 'Déjà connecté sur un autre appareil ?'), ' Sur cet appareil-là, va dans Réglages → « Connecter un autre appareil », puis scanne le QR code avec celui-ci, ou colle le lien de connexion dans le champ « Clé d’accès » ci-dessous.'),
     h(
       'details.guide',
       h('summary', 'Étape 1 : créer le dépôt privé'),
@@ -278,12 +283,46 @@ async function buildSyncPanel(st, mode) {
       'div.form',
       h('span.label', 'Étape 3 : connecter cet appareil'),
       h('label.field', h('span.help', 'Dépôt'), repoInput),
-      h('label.field', h('span.help', 'Clé d’accès'), tokenInput),
+      h('label.field', h('span.help', 'Clé d’accès (ou lien de connexion)'), tokenInput),
       error,
       h('div.button-row.left', connectBtn),
       h('p.small.muted', 'Refais cette étape 3 sur ton autre appareil, avec le même dépôt et la même clé. Les cartes déjà présentes des deux côtés sont réunies.'),
     ),
   );
+}
+
+async function showConnectDialog() {
+  const link = await getGithubConnectLink();
+  if (!link) return;
+  const qrBox = h('div.qr-box', h('p.muted.small', 'Préparation du QR code…'));
+  qrImage(link, 'QR code de connexion')
+    .then((img) => qrBox.replaceChildren(img))
+    .catch(() => qrBox.replaceChildren(h('p.muted.small', 'QR code indisponible : utilise le lien ci-dessous.')));
+  const linkField = h('textarea.input.mono.small-link', { id: 'connect-link', rows: 3, readonly: true }, link);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(link);
+      toast('Lien copié. Envoie-le sur ton téléphone (e-mail, message à toi-même…).');
+    } catch {
+      linkField.select();
+      toast('Sélectionne le lien puis copie-le.');
+    }
+  };
+  modal({
+    title: 'Connecter un autre appareil',
+    wide: true,
+    body: [
+      h('p', 'Sur ton téléphone, ouvre l’appareil photo, vise ce code et touche le lien qui apparaît.'),
+      qrBox,
+      h('p.small.muted', 'Si Mnémo est installé sur l’écran d’accueil du téléphone, ouvre plutôt l’appli, va dans Réglages et colle ce lien dans le champ « Clé d’accès » : l’appli installée et Safari ne partagent pas leurs données.'),
+      linkField,
+      h('p.small.warn', 'Ce code et ce lien contiennent ta clé d’accès : ne les montre et ne les envoie qu’à toi-même.'),
+    ],
+    actions: [
+      { label: 'Copier le lien', onClick: async () => { await copy(); return false; } },
+      { label: 'Fermer', kind: 'primary' },
+    ],
+  });
 }
 
 function formatBytes(n) {
