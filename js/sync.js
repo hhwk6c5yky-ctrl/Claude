@@ -11,6 +11,7 @@
 // propagées grâce à des « pierres tombales » (deleted: true).
 import * as db from './db.js';
 import { planSync } from './sync-plan.js';
+import { checkGithubAccess, parseRepo, startGithubSync } from './sync-github.js';
 
 const RECONCILE_DELAY = 1200;
 const LOAD_TIMEOUT = 15000;
@@ -27,6 +28,51 @@ let running = false;
 let again = false;
 let stopped = false;
 let pending = false; // une synchronisation est programmée
+let mode = null; // 'claude' | 'github' | null
+let github = null; // synchronisation GitHub en cours
+
+/** Mode de synchronisation actif : 'claude', 'github' ou null (local seulement). */
+export function getSyncMode() {
+  return mode;
+}
+
+/** Infos de la synchronisation GitHub enregistrée sur cet appareil (sans la clé). */
+export async function getGithubConfig() {
+  const cfg = await db.getMeta('githubSync', null);
+  return cfg ? { repo: cfg.repo } : null;
+}
+
+/** Active la synchronisation GitHub sur cet appareil après avoir vérifié l'accès. */
+export async function connectGithub(repoInput, token) {
+  const repo = parseRepo(repoInput);
+  if (!repo) return { ok: false, message: 'Nom de dépôt invalide. Écris-le sous la forme pseudo/nom-du-depot.' };
+  const cleanToken = String(token || '').trim();
+  if (!cleanToken) return { ok: false, message: 'Colle ta clé d’accès GitHub.' };
+  const check = await checkGithubAccess(repo, cleanToken);
+  if (!check.ok) return check;
+  await db.setMeta('githubSync', { repo, token: cleanToken });
+  startGithub({ repo, token: cleanToken });
+  return { ok: true, isPrivate: check.isPrivate };
+}
+
+export async function disconnectGithub() {
+  github?.stop();
+  github = null;
+  mode = null;
+  await db.setMeta('githubSync', null);
+  setStatus({ state: 'unsupported' });
+}
+
+export function syncNow() {
+  if (mode === 'github') github?.syncNow();
+  else if (mode === 'claude') schedule(0);
+}
+
+function startGithub(cfg) {
+  github?.stop();
+  mode = 'github';
+  github = startGithubSync({ ...cfg, setStatus });
+}
 
 export function getSyncStatus() {
   return status;
@@ -52,9 +98,13 @@ function setStatus(next) {
 export async function initSync() {
   const claude = globalThis.claude;
   if (!claude?.use) {
-    setStatus({ state: 'unsupported' });
+    // Version GitHub Pages / Netlify : synchronisation par un dépôt GitHub, si elle a été configurée.
+    const cfg = await db.getMeta('githubSync', null).catch(() => null);
+    if (cfg?.repo && cfg?.token) startGithub(cfg);
+    else setStatus({ state: 'unsupported' });
     return;
   }
+  mode = 'claude';
   setStatus({ state: 'connecting' });
   const [store, user, assetStore] = await Promise.all(
     ['db', 'user', 'assets'].map((name) => claude.use(name).catch(() => null)),

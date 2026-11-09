@@ -5,7 +5,7 @@ import { buildBackup, backupFileName, restoreBackup, saveFile } from '../backup.
 import { applyTheme, confirmDialog, h, pickFile, plural, toast } from '../ui.js';
 import { navigate } from '../router.js';
 import { screen, syncLabel } from './common.js';
-import { getSyncStatus } from '../sync.js';
+import { connectGithub, disconnectGithub, getGithubConfig, getSyncMode, getSyncStatus, syncNow } from '../sync.js';
 import { clampInt } from './deck.js';
 
 export async function settingsView() {
@@ -127,22 +127,9 @@ export async function settingsView() {
   const usage = estimate?.usage != null ? `${formatBytes(estimate.usage)} utilisés sur cet appareil` : null;
 
   const st = getSyncStatus();
-  const syncOn = !['unsupported', 'unavailable', 'idle'].includes(st.state);
-  const syncPanel = syncOn
-    ? h(
-        'section.panel',
-        h('h2', 'Synchronisation'),
-        h('p.sync-line', h('span', { class: `sync-pill tone-${syncLabel(st)?.tone || 'busy'}` }), h('strong.sync-text', syncLabel(st)?.text || '')),
-        h('p', 'Tes paquets, tes cartes, tes images et ta progression sont enregistrés dans ton compte Claude. Ouvre ce même lien sur ton téléphone et ton ordinateur, connecté avec le même compte : tout apparaît des deux côtés, en quelques secondes.'),
-        h('p.small.muted', 'Une copie reste aussi sur chaque appareil, et les changements faits hors connexion partent dès le retour du réseau. Si une même carte est modifiée sur deux appareils, la modification la plus récente l’emporte.'),
-      )
-    : h(
-        'section.panel',
-        h('h2', 'Synchronisation'),
-        h('p', st.state === 'unavailable'
-          ? 'La synchronisation demande d’être connecté à ton compte Claude. Connecte-toi puis recharge la page.'
-          : 'Dans cette version, tes cartes restent sur cet appareil. Pour les retrouver automatiquement sur ton téléphone et ton ordinateur, utilise Mnémo depuis son lien claude.ai. Sinon, passe par « Tout sauvegarder » puis « Restaurer une sauvegarde ».'),
-      );
+  const mode = getSyncMode();
+  const syncOn = Boolean(mode);
+  const syncPanel = await buildSyncPanel(st, mode);
 
   const body = h(
     'div.settings',
@@ -184,6 +171,119 @@ export async function settingsView() {
   );
 
   return { el: screen({ title: 'Réglages', back: '', body, className: 'settings-screen' }) };
+}
+
+async function buildSyncPanel(st, mode) {
+  const statusLine = () => {
+    const label = syncLabel(st);
+    return h('p.sync-line', h('span', { class: `sync-pill tone-${label?.tone || 'busy'}` }), h('strong.sync-text', label?.text || ''));
+  };
+
+  if (mode === 'claude') {
+    return h(
+      'section.panel',
+      h('h2', 'Synchronisation'),
+      statusLine(),
+      h('p', 'Tes paquets, tes cartes, tes images et ta progression sont enregistrés dans ton compte Claude. Ouvre ce même lien sur ton téléphone et ton ordinateur, connecté avec le même compte : tout apparaît des deux côtés, en quelques secondes.'),
+      h('p.small.muted', 'Une copie reste aussi sur chaque appareil, et les changements faits hors connexion partent dès le retour du réseau. Si une même carte est modifiée sur deux appareils, la modification la plus récente l’emporte.'),
+    );
+  }
+  if (st.state === 'unavailable') {
+    return h('section.panel', h('h2', 'Synchronisation'), h('p', 'La synchronisation demande d’être connecté à ton compte Claude. Connecte-toi puis recharge la page.'));
+  }
+
+  if (mode === 'github') {
+    const cfg = await getGithubConfig();
+    return h(
+      'section.panel',
+      h('h2', 'Synchronisation GitHub'),
+      statusLine(),
+      h('p', 'Tes cartes sont synchronisées avec le dépôt ', h('strong', cfg?.repo || ''), '. Les changements partent quelques secondes après chaque modification, et ceux des autres appareils arrivent en moins d’une minute.'),
+      h('p.small.muted', 'Si une même carte est modifiée sur deux appareils, la modification la plus récente l’emporte. Hors connexion, tu peux réviser normalement : tout part au retour du réseau.'),
+      h(
+        'div.button-row.left',
+        h('button.btn', { type: 'button', onclick: () => { syncNow(); toast('Synchronisation lancée.'); } }, 'Synchroniser maintenant'),
+        h('button.btn.ghost.danger', {
+          type: 'button',
+          onclick: async () => {
+            const ok = await confirmDialog({
+              title: 'Déconnecter cet appareil ?',
+              message: 'Les cartes restent sur cet appareil et dans ton dépôt GitHub, mais elles ne se synchroniseront plus ici. La clé d’accès est effacée de cet appareil.',
+              confirmLabel: 'Déconnecter',
+              danger: true,
+            });
+            if (!ok) return;
+            await disconnectGithub();
+            toast('Synchronisation désactivée sur cet appareil.');
+            navigate('settings', { replace: true });
+          },
+        }, 'Déconnecter cet appareil'),
+      ),
+    );
+  }
+
+  // Pas encore de synchronisation : formulaire de configuration GitHub.
+  const repoInput = h('input.input', { id: 'gh-repo', type: 'text', placeholder: 'pseudo/mnemo-donnees', autocomplete: 'off', autocapitalize: 'off', spellcheck: false });
+  const tokenInput = h('input.input.mono', { id: 'gh-token', type: 'password', placeholder: 'github_pat_…', autocomplete: 'off', autocapitalize: 'off', spellcheck: false });
+  const error = h('p.warn', { hidden: true, role: 'alert' });
+  const connectBtn = h('button.btn.primary', {
+    type: 'button',
+    onclick: async () => {
+      error.hidden = true;
+      connectBtn.disabled = true;
+      connectBtn.textContent = 'Vérification…';
+      const res = await connectGithub(repoInput.value, tokenInput.value);
+      connectBtn.disabled = false;
+      connectBtn.textContent = 'Connecter';
+      if (!res.ok) {
+        error.textContent = res.message;
+        error.hidden = false;
+        return;
+      }
+      toast(res.isPrivate ? 'Synchronisation activée.' : 'Synchronisation activée. Attention : ce dépôt est public, rends-le privé dans ses réglages GitHub.', { duration: 6000 });
+      navigate('settings', { replace: true });
+    },
+  }, 'Connecter');
+  const link = (href, text) => h('a', { href, target: '_blank', rel: 'noopener' }, text);
+
+  return h(
+    'section.panel',
+    h('h2', 'Synchroniser avec GitHub'),
+    h('p', 'Pour retrouver tes cartes sur ton téléphone et ton ordinateur, Mnémo peut les ranger dans un dépôt privé de ton compte GitHub. À configurer une seule fois (environ 5 minutes), puis à connecter sur chaque appareil.'),
+    h(
+      'details.guide',
+      h('summary', 'Étape 1 : créer le dépôt privé'),
+      h(
+        'ol.steps',
+        h('li', 'Va sur ', link('https://github.com/new', 'github.com/new'), '.'),
+        h('li', 'Nom du dépôt : ', h('code', 'mnemo-donnees'), '.'),
+        h('li', 'Choisis ', h('strong', 'Private'), ' (important : sinon tes cartes seraient visibles par tous).'),
+        h('li', 'Coche ', h('strong', 'Add a README file'), ', puis clique sur ', h('strong', 'Create repository'), '.'),
+      ),
+    ),
+    h(
+      'details.guide',
+      h('summary', 'Étape 2 : créer la clé d’accès'),
+      h(
+        'ol.steps',
+        h('li', 'Va sur ', link('https://github.com/settings/personal-access-tokens/new', 'github.com/settings/personal-access-tokens/new'), ' (Settings → Developer settings → Personal access tokens → Fine-grained tokens).'),
+        h('li', 'Token name : ', h('code', 'Mnémo'), '. Expiration : la durée la plus longue proposée.'),
+        h('li', 'Repository access : ', h('strong', 'Only select repositories'), ', puis choisis ', h('code', 'mnemo-donnees'), '.'),
+        h('li', 'Permissions → Repository permissions → ', h('strong', 'Contents'), ' : ', h('strong', 'Read and write'), '.'),
+        h('li', 'Clique sur ', h('strong', 'Generate token'), ' et copie la clé (elle commence par ', h('code', 'github_pat_'), '). GitHub ne la montre qu’une fois : garde-la dans un endroit sûr, tu en auras besoin sur ton autre appareil.'),
+      ),
+      h('p.small.muted', 'Cette clé ne donne accès qu’au dépôt mnemo-donnees. Ne la partage avec personne.'),
+    ),
+    h(
+      'div.form',
+      h('span.label', 'Étape 3 : connecter cet appareil'),
+      h('label.field', h('span.help', 'Dépôt'), repoInput),
+      h('label.field', h('span.help', 'Clé d’accès'), tokenInput),
+      error,
+      h('div.button-row.left', connectBtn),
+      h('p.small.muted', 'Refais cette étape 3 sur ton autre appareil, avec le même dépôt et la même clé. Les cartes déjà présentes des deux côtés sont réunies.'),
+    ),
+  );
 }
 
 function formatBytes(n) {
