@@ -12,6 +12,7 @@ import { studyView } from './views/study.js';
 import { practiceView } from './views/practice.js';
 import { importView } from './views/import.js';
 import { settingsView } from './views/settings.js';
+import { connectView } from './views/connect.js';
 
 const routes = [
   ['', homeView],
@@ -22,6 +23,7 @@ const routes = [
   ['import', importView],
   ['import/:deckId', importView],
   ['settings', settingsView],
+  ['connect/:payload', connectView],
 ];
 
 const root = document.getElementById('app');
