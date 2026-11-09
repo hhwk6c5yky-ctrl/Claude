@@ -2,7 +2,7 @@ import * as db from '../db.js';
 import { createDeck, createSampleDeck, deckSummary, getSettings, todayActivity } from '../store.js';
 import { h, icon, modal, plural, toast } from '../ui.js';
 import { navigate } from '../router.js';
-import { countLabel, dueChips, emptyState, screen } from './common.js';
+import { countLabel, dueChips, emptyState, screen, syncBadge } from './common.js';
 import { formatDuration } from '../srs.js';
 
 export async function homeView() {
@@ -19,6 +19,7 @@ export async function homeView() {
   const totalDue = summaries.reduce((n, s) => n + s.sum.dueTotal, 0);
 
   const actions = [
+    syncBadge(),
     h('button.icon-btn', { type: 'button', 'aria-label': 'Importer', title: 'Importer', onclick: () => navigate('import') }, icon('import')),
     h('button.icon-btn', { type: 'button', 'aria-label': 'Réglages', title: 'Réglages', onclick: () => navigate('settings') }, icon('settings')),
   ];
@@ -91,6 +92,8 @@ export function newDeckDialog() {
       return false;
     }
     const deck = await createDeck(name);
+    // Passe par la page du paquet pour que « Retour » / « Terminer » y ramène.
+    navigate(`deck/${deck.id}`);
     navigate(`deck/${deck.id}/card/new`);
     return true;
   };

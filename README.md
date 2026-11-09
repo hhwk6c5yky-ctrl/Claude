@@ -7,6 +7,7 @@ Mnémo est une appli de flashcards qui fonctionne dans le navigateur, sur télé
 - **Répétition espacée** comme dans Anki (algorithme SM-2). Après chaque carte, tu indiques si tu as répondu *À revoir*, *Difficile*, *Correct* ou *Facile*. Mnémo calcule quand la carte doit revenir : quelques minutes pour une carte ratée, puis 1 jour, 3 jours, 1 semaine, 1 mois… tant que tu la sais. Chaque bouton affiche le délai correspondant.
 - **Mémoire active** : tu cherches la réponse avant de la voir. Tu peux aussi l'écrire au clavier : l'appli la vérifie, en tolérant les majuscules, une faute de frappe ou un accent oublié (elle te le signale quand même).
 - **Photos au recto et/ou au verso** : prends une photo, choisis une image de la galerie ou colle une capture d'écran (Ctrl + V sur ordinateur). Les images sont redimensionnées et compressées automatiquement. Touche une image pendant la révision pour l'agrandir.
+- **Maths et alphabet grec** : un clavier « Symboles » (lettres grecques, opérations, ensembles, exposants et indices, géométrie) s'ouvre sous chaque champ, y compris pour écrire une réponse. Les formules s'écrivent entre deux `$` comme dans Anki : `$\frac{1}{2}$`, `$x^2$`, `$\sqrt{2}$`, ou `$$…$$` pour une formule centrée. Elles s'affichent avec KaTeX, livré avec l'appli (marche hors connexion), et un aperçu apparaît pendant la saisie. En mode écriture, `α` est accepté pour une réponse écrite `$\alpha$`.
 - **Import Quizlet** : colle le texte exporté par Quizlet. Les séparateurs sont détectés automatiquement et un aperçu montre les cartes avant l'import. Les fichiers texte d'Anki et les CSV marchent aussi.
 - **Entraînement libre** (comme Quizlet) : retourner les cartes, écrire la réponse ou QCM, dans un sens ou dans l'autre. Les cartes ratées reviennent jusqu'à ce qu'elles soient sues. Ce mode ne modifie pas ton planning de révision.
 - **Annuler** la dernière réponse en cas d'erreur de doigt, **modifier** une carte en pleine révision.
@@ -82,6 +83,9 @@ npm test
 | `js/session.js` | File d'attente d'une séance : nouvelles cartes, apprentissage, révisions, annulation |
 | `js/importer.js` | Lecture du texte Quizlet / Anki / CSV |
 | `js/answer.js` | Vérification des réponses écrites |
+| `js/math.js` | Formules : détection des `$…$`, rendu KaTeX, conversion en texte |
+| `js/symbols.js` | Clavier de symboles (grec, maths) |
+| `vendor/katex/` | KaTeX 0.16.11 (licence MIT) |
 | `js/db.js` | Stockage IndexedDB (paquets, cartes, images, historique) |
 | `js/images.js` | Redimensionnement et compression des photos |
 | `js/backup.js` | Sauvegarde et restauration au format JSON |

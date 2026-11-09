@@ -4,6 +4,7 @@ import { applyTheme, h } from './ui.js';
 import { trimImageCache } from './images.js';
 import { getPrefs } from './store.js';
 import { requestPersistence } from './db.js';
+import { initSync } from './sync.js';
 import { homeView } from './views/home.js';
 import { deckView } from './views/deck.js';
 import { editorView } from './views/editor.js';
@@ -81,6 +82,12 @@ async function start() {
   }
   onRouteChange(render);
   render(currentPath());
+  initSync().catch(() => {});
+  // Données reçues d'un autre appareil : rafraîchit les écrans de consultation (jamais une révision en cours).
+  window.addEventListener('mnemo:remote-change', () => {
+    const path = currentPath();
+    if (path === '' || /^deck\/[^/]+$/.test(path) || path === 'settings') render(path);
+  });
   requestPersistence();
   if (!isEmbedded && 'serviceWorker' in navigator && location.protocol === 'https:') {
     navigator.serviceWorker.register('sw.js').catch(() => {});

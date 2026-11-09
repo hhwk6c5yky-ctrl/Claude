@@ -4,7 +4,8 @@ import { DEFAULT_SETTINGS } from '../srs.js';
 import { buildBackup, backupFileName, restoreBackup, saveFile } from '../backup.js';
 import { applyTheme, confirmDialog, h, pickFile, plural, toast } from '../ui.js';
 import { navigate } from '../router.js';
-import { screen } from './common.js';
+import { screen, syncLabel } from './common.js';
+import { getSyncStatus } from '../sync.js';
 import { clampInt } from './deck.js';
 
 export async function settingsView() {
@@ -125,15 +126,34 @@ export async function settingsView() {
   const lastBackup = await db.getMeta('lastBackup', null);
   const usage = estimate?.usage != null ? `${formatBytes(estimate.usage)} utilisés sur cet appareil` : null;
 
+  const st = getSyncStatus();
+  const syncOn = !['unsupported', 'unavailable', 'idle'].includes(st.state);
+  const syncPanel = syncOn
+    ? h(
+        'section.panel',
+        h('h2', 'Synchronisation'),
+        h('p.sync-line', h('span', { class: `sync-pill tone-${syncLabel(st)?.tone || 'busy'}` }), h('strong.sync-text', syncLabel(st)?.text || '')),
+        h('p', 'Tes paquets, tes cartes, tes images et ta progression sont enregistrés dans ton compte Claude. Ouvre ce même lien sur ton téléphone et ton ordinateur, connecté avec le même compte : tout apparaît des deux côtés, en quelques secondes.'),
+        h('p.small.muted', 'Une copie reste aussi sur chaque appareil, et les changements faits hors connexion partent dès le retour du réseau. Si une même carte est modifiée sur deux appareils, la modification la plus récente l’emporte.'),
+      )
+    : h(
+        'section.panel',
+        h('h2', 'Synchronisation'),
+        h('p', st.state === 'unavailable'
+          ? 'La synchronisation demande d’être connecté à ton compte Claude. Connecte-toi puis recharge la page.'
+          : 'Dans cette version, tes cartes restent sur cet appareil. Pour les retrouver automatiquement sur ton téléphone et ton ordinateur, utilise Mnémo depuis son lien claude.ai. Sinon, passe par « Tout sauvegarder » puis « Restaurer une sauvegarde ».'),
+      );
+
   const body = h(
     'div.settings',
+    syncPanel,
     h(
       'section.panel',
       h('h2', 'Sauvegarde'),
-      h('p', 'Tes cartes sont enregistrées uniquement dans ce navigateur, sur cet appareil. Fais une sauvegarde de temps en temps pour ne rien perdre, ou pour passer tes paquets sur un autre appareil.'),
+      h('p', syncOn ? 'Garde aussi de temps en temps une sauvegarde dans un fichier : c’est ta copie de secours, utilisable dans n’importe quelle version de Mnémo.' : 'Tes cartes sont enregistrées uniquement dans ce navigateur, sur cet appareil. Fais une sauvegarde de temps en temps pour ne rien perdre, ou pour passer tes paquets sur un autre appareil.'),
       h('div.button-row.left', h('button.btn.primary', { type: 'button', onclick: backupAll }, 'Tout sauvegarder'), h('button.btn', { type: 'button', onclick: restore }, 'Restaurer une sauvegarde')),
       h('p.small.muted', lastBackup ? `Dernière sauvegarde : ${new Date(lastBackup).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}.` : 'Aucune sauvegarde faite depuis cet appareil.', usage ? ` ${usage}.` : '', persisted ? ' Stockage protégé contre l’effacement automatique.' : ''),
-      !persisted ? h('p.small.muted', 'Sur iPhone, ajoute Mnémo à l’écran d’accueil (bouton Partager → « Sur l’écran d’accueil ») : Safari efface sinon les données des sites inutilisés pendant plusieurs semaines.') : null,
+      !persisted && !syncOn ? h('p.small.muted', 'Sur iPhone, ajoute Mnémo à l’écran d’accueil (bouton Partager → « Sur l’écran d’accueil ») : Safari efface sinon les données des sites inutilisés pendant plusieurs semaines.') : null,
     ),
     h('section.panel', h('h2', 'Affichage'), h('div.field', h('span.label', 'Thème'), themeGroup)),
     h(

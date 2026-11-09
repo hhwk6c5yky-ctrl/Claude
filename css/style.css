@@ -1921,3 +1921,224 @@ textarea.input {
   color: #fff;
   background: rgb(255 255 255 / 0.12);
 }
+
+/* ---------- Symboles et formules ---------- */
+
+.side-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.symbol-icon {
+  font-family: 'Times New Roman', 'Noto Serif', Georgia, serif;
+  font-size: 1.05rem;
+  font-style: italic;
+  letter-spacing: 0.02em;
+}
+
+.symbols {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+}
+
+.symbol-tabs {
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  margin: -2px;
+  padding: 2px;
+}
+
+.symbol-tab {
+  flex: none;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid transparent;
+  border-radius: 99px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.symbol-tab[aria-selected='true'] {
+  background: var(--surface);
+  border-color: var(--line);
+  color: var(--ink);
+}
+
+.symbol-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
+  gap: 4px;
+}
+
+.symbol-grid.wide {
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+}
+
+.symbol-key {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 2px 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 1.2rem;
+  line-height: 1.1;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.symbol-key:hover {
+  border-color: var(--accent);
+}
+
+.symbol-key:active {
+  background: var(--accent-soft);
+}
+
+.symbol-key small {
+  font-size: 0.7rem;
+  color: var(--muted);
+}
+
+.symbol-help {
+  margin: 0;
+}
+
+.math-preview {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 8px 12px;
+  border-left: 3px solid var(--accent);
+  background: color-mix(in srgb, var(--surface) 85%, transparent);
+}
+
+.math-preview .face-text {
+  max-width: 100%;
+  font-size: 1.1rem;
+}
+
+.answer-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.answer-row .input {
+  flex: 1;
+  min-width: 0;
+}
+
+.answer-row .btn {
+  flex: none;
+  min-height: 52px;
+}
+
+.face-text .katex {
+  font-size: 1.1em;
+}
+
+.face-text.big .katex {
+  font-size: 1em;
+}
+
+.math-display {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.face-text .katex-display {
+  margin: 0.3em 0;
+}
+
+.mcq-option .katex {
+  font-size: 1.05em;
+}
+
+/* ---------- Synchronisation ---------- */
+
+.sync-badge {
+  position: relative;
+  color: var(--muted);
+}
+
+.sync-dot {
+  position: absolute;
+  right: 9px;
+  bottom: 10px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid var(--bg);
+  background: var(--muted);
+}
+
+.sync-badge[data-tone='ok'] .sync-dot,
+.tone-ok {
+  background: var(--good);
+}
+
+.sync-badge[data-tone='busy'] .sync-dot,
+.tone-busy {
+  background: var(--hard);
+}
+
+.sync-badge[data-tone='warn'] .sync-dot,
+.tone-warn {
+  background: var(--hard);
+}
+
+.sync-badge[data-tone='bad'] .sync-dot,
+.tone-bad {
+  background: var(--again);
+}
+
+.sync-badge[data-tone='busy'] .sync-dot {
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sync-badge[data-tone='busy'] .sync-dot {
+    animation: none;
+  }
+}
+
+.sync-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sync-pill {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}

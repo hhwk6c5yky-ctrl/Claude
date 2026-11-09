@@ -6,6 +6,7 @@ import { checkAnswer } from '../answer.js';
 import { h, icon, plural, toast } from '../ui.js';
 import { goBack, navigate } from '../router.js';
 import { cardFace, screen } from './common.js';
+import { symbolPicker } from '../symbols.js';
 
 const RATINGS = [
   { value: Rating.Again, label: 'À revoir', key: '1', cls: 'again' },
@@ -105,9 +106,11 @@ export async function studyView({ deckId }) {
           reveal();
         }
       });
+      const symbols = symbolPicker(() => input, { formulas: false, compact: true });
       controls.replaceChildren(
         h('label.sr-only', { for: 'typed-answer' }, 'Ta réponse'),
-        input,
+        symbols.panel,
+        h('div.answer-row', input, symbols.button),
         h('button.btn.primary.big.wide', { type: 'button', onclick: () => { typed = input.value; reveal(); } }, 'Vérifier'),
       );
       setTimeout(() => input.focus(), 30);

@@ -5,6 +5,8 @@ import { checkAnswer } from '../answer.js';
 import { h, icon, plural } from '../ui.js';
 import { goBack } from '../router.js';
 import { cardFace, screen } from './common.js';
+import { symbolPicker } from '../symbols.js';
+import { mathToPlain } from '../math.js';
 
 const MODES = [
   { id: 'flip', label: 'Retourner la carte', help: 'Tu réfléchis, tu retournes, tu dis si tu savais.' },
@@ -134,7 +136,8 @@ export async function practiceView({ deckId }) {
             submit();
           }
         });
-        controls.replaceChildren(h('label.sr-only', { for: 'practice-answer' }, 'Ta réponse'), input, h('div.button-row', h('button.btn', { type: 'button', onclick: () => { typed = ''; reveal('wrong'); } }, 'Je ne sais pas'), h('button.btn.primary', { type: 'button', onclick: submit }, 'Vérifier')));
+        const symbols = symbolPicker(() => input, { formulas: false, compact: true });
+        controls.replaceChildren(h('label.sr-only', { for: 'practice-answer' }, 'Ta réponse'), symbols.panel, h('div.answer-row', input, symbols.button), h('div.button-row', h('button.btn', { type: 'button', onclick: () => { typed = ''; reveal('wrong'); } }, 'Je ne sais pas'), h('button.btn.primary', { type: 'button', onclick: submit }, 'Vérifier')));
         setTimeout(() => input.focus(), 30);
       } else {
         const [, answer] = sides(current);
@@ -216,7 +219,7 @@ export async function practiceView({ deckId }) {
           'div.study-message.done',
           h('h2', 'Entraînement terminé'),
           h('dl.done-stats', h('div', h('dt', 'Du premier coup'), h('dd', `${firstTry} / ${total}`)), h('div', h('dt', 'À retravailler'), h('dd', String(missed.length)))),
-          missed.length ? h('ul.missed-list', missed.slice(0, 12).map((m) => h('li', h('span.clip', sides(m)[0].text || 'Image'), h('span.muted', `— ${sides(m)[1].text || 'image'}`)))) : h('p', 'Tout est su du premier coup. Bravo !'),
+          missed.length ? h('ul.missed-list', missed.slice(0, 12).map((m) => h('li', h('span.clip', mathToPlain(sides(m)[0].text) || 'Image'), h('span.muted', `— ${mathToPlain(sides(m)[1].text) || 'image'}`)))) : h('p', 'Tout est su du premier coup. Bravo !'),
         ),
       );
       controls.replaceChildren(

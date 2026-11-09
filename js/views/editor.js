@@ -4,6 +4,8 @@ import { confirmDialog, h, icon, pickFile, toast } from '../ui.js';
 import { goBack, navigate } from '../router.js';
 import { screen } from './common.js';
 import { forgetImage, imageUrl, prepareImage, recordUrl } from '../images.js';
+import { hasMath, renderRich } from '../math.js';
+import { symbolPicker } from '../symbols.js';
 
 /**
  * Création (cardId = "new") ou modification d'une carte.
@@ -110,6 +112,7 @@ export async function editorView({ deckId, cardId }) {
       back.el,
       h('div.editor-tools', swapBtn, deleteBtn),
       h('div.editor-footer', counter, isNew ? h('button.btn', { type: 'button', onclick: () => goBack(`deck/${deckId}`) }, 'Terminer') : null, saveBtn),
+      h('p.small.muted', 'Formules : écris-les entre deux $, par exemple $x^2$, $\\frac{1}{2}$ ou $\\alpha$. Le bouton « Symboles » donne les lettres grecques et les signes mathématiques.'),
       h('p.small.muted.hint', 'Astuce : sur ordinateur, colle une capture d’écran directement dans un champ (Ctrl + V), et Ctrl + Entrée pour enregistrer.'),
     ),
     className: 'editor-screen',
@@ -180,11 +183,30 @@ function sideEditor(key, label, placeholder, initial) {
 
   const choose = async () => useFile(await pickFile({ accept: 'image/*' }));
 
+  // Aperçu des formules ($…$) pendant la saisie
+  const mathPreview = h('div.math-preview', { hidden: true, 'aria-label': 'Aperçu de la formule' });
+  let previewTimer;
+  const updatePreview = () => {
+    clearTimeout(previewTimer);
+    previewTimer = setTimeout(() => {
+      const show = hasMath(text.value);
+      mathPreview.hidden = !show;
+      if (show) {
+        const p = h('p.face-text');
+        renderRich(p, text.value);
+        mathPreview.replaceChildren(h('span.label', 'Aperçu'), p);
+      }
+    }, 200);
+  };
+  text.addEventListener('input', updatePreview);
+
+  const symbols = symbolPicker(() => text);
+
   const el = h(
     'section.side-editor',
     { 'aria-label': label },
     h('div.side-head', h('label', { for: `side-${key}` }, h('span.side-label', label), h('span.side-hint', placeholder))),
-    h('div.bristol.side-body', text, preview, addBtn),
+    h('div.bristol.side-body', text, symbols.panel, mathPreview, preview, h('div.side-tools', addBtn, symbols.button)),
   );
 
   // Coller une image (capture d'écran) ou la glisser-déposer
@@ -212,6 +234,7 @@ function sideEditor(key, label, placeholder, initial) {
   });
 
   renderImage();
+  updatePreview();
 
   return {
     el,
@@ -223,12 +246,14 @@ function sideEditor(key, label, placeholder, initial) {
       imageId = s.imageId;
       pending = s.pending;
       renderImage();
+      updatePreview();
     },
     reset: () => {
       text.value = '';
       imageId = null;
       pending = null;
       renderImage();
+      updatePreview();
     },
     /** Stocke la nouvelle image et supprime l'ancienne si elle a été remplacée. */
     async commit() {
@@ -241,6 +266,7 @@ function sideEditor(key, label, placeholder, initial) {
     },
     dispose: () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl);
+      clearTimeout(previewTimer);
     },
   };
 }
