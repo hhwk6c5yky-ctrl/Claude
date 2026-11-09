@@ -38,14 +38,27 @@ export async function restoreBackup(json) {
   if (!data || data.format !== BACKUP_FORMAT) throw new Error('Ce fichier n’est pas une sauvegarde Mnémo.');
   if (data.version > BACKUP_VERSION) throw new Error('Cette sauvegarde vient d’une version plus récente de Mnémo. Mets l’appli à jour.');
   const images = (data.images || []).map((img) => ({ ...img, data: base64ToBuffer(img.data) }));
-  await db.bulkImport({ decks: data.decks || [], cards: data.cards || [], images, logs: data.logs || [] });
+  // Une restauration est un choix délibéré : elle doit aussi l'emporter sur les autres appareils synchronisés.
+  const now = Date.now();
+  const decks = (data.decks || []).map((d) => ({ ...d, updatedAt: now }));
+  const cards = (data.cards || []).map((c) => ({ ...c, updatedAt: now }));
+  await db.bulkImport({ decks, cards, images, logs: data.logs || [] });
   return { decks: (data.decks || []).length, cards: (data.cards || []).length, images: images.length };
 }
 
 /** Propose le fichier au téléchargement (ou au partage sur mobile). */
 export async function saveFile(name, text, type = 'application/json') {
   if (isEmbedded) {
-    throw new Error('Le téléchargement n’est pas possible dans cet aperçu. Ouvre Mnémo depuis son adresse (ou l’appli installée) pour sauvegarder.');
+    // Dans claude.ai, le téléchargement passe par la capacité « downloads » (avec confirmation).
+    const downloads = globalThis.claude?.use ? await globalThis.claude.use('downloads').catch(() => null) : null;
+    if (!downloads) throw new Error('Le téléchargement n’est pas possible ici. Ouvre Mnémo depuis son lien claude.ai ou depuis l’appli installée pour sauvegarder.');
+    try {
+      await downloads.save({ filename: name, data: new Blob([text], { type }) });
+      return 'downloaded';
+    } catch (e) {
+      if (e?.code === 'declined' || e?.code === 'cancelled') return 'cancelled';
+      throw new Error('Le téléchargement a été refusé ou n’a pas abouti.');
+    }
   }
   const blob = new Blob([text], { type });
   const file = typeof File === 'function' ? new File([blob], name, { type }) : null;

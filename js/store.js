@@ -110,13 +110,15 @@ export async function recordAnswer(before, after, rating) {
 }
 
 export async function undoAnswer(before, logId) {
-  await db.putCard(before);
+  // Date de modification récente : l'annulation doit aussi gagner sur les autres appareils.
+  await db.putCard({ ...before, updatedAt: Date.now() });
   if (logId) await db.deleteLog(logId);
 }
 
 export async function resetProgress(deckId) {
   const cards = await db.getCards(deckId);
-  await db.putCards(cards.map((c) => ({ ...c, srs: newSrs() })));
+  const now = Date.now();
+  await db.putCards(cards.map((c) => ({ ...c, srs: newSrs(), updatedAt: now })));
 }
 
 export const SAMPLE_DECK = {

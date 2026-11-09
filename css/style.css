@@ -2075,3 +2075,70 @@ textarea.input {
 .mcq-option .katex {
   font-size: 1.05em;
 }
+
+/* ---------- Synchronisation ---------- */
+
+.sync-badge {
+  position: relative;
+  color: var(--muted);
+}
+
+.sync-dot {
+  position: absolute;
+  right: 9px;
+  bottom: 10px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid var(--bg);
+  background: var(--muted);
+}
+
+.sync-badge[data-tone='ok'] .sync-dot,
+.tone-ok {
+  background: var(--good);
+}
+
+.sync-badge[data-tone='busy'] .sync-dot,
+.tone-busy {
+  background: var(--hard);
+}
+
+.sync-badge[data-tone='warn'] .sync-dot,
+.tone-warn {
+  background: var(--hard);
+}
+
+.sync-badge[data-tone='bad'] .sync-dot,
+.tone-bad {
+  background: var(--again);
+}
+
+.sync-badge[data-tone='busy'] .sync-dot {
+  animation: pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sync-badge[data-tone='busy'] .sync-dot {
+    animation: none;
+  }
+}
+
+.sync-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.sync-pill {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex: none;
+}

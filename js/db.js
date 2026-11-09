@@ -11,6 +11,46 @@ const DB_NAME = 'mnemo';
 const DB_VERSION = 1;
 let dbPromise = null;
 
+// ---------- Suivi des changements (pour la synchronisation) ----------
+
+const changeListeners = new Set();
+
+/** Appelé après chaque modification locale de paquet, carte ou image. */
+export function onLocalChange(fn) {
+  changeListeners.add(fn);
+  return () => changeListeners.delete(fn);
+}
+
+function notify() {
+  for (const fn of changeListeners) {
+    try {
+      fn();
+    } catch {
+      /* un écouteur défaillant ne bloque pas les autres */
+    }
+  }
+}
+
+const TOMBSTONE_TTL = 120 * 24 * 60 * 60 * 1000;
+
+/** Garde la trace des suppressions pour les propager aux autres appareils. */
+async function addTombstones(keys) {
+  if (!keys.length) return;
+  const now = Date.now();
+  const t = await getMeta('tombstones', {});
+  for (const k of keys) t[k] = now;
+  for (const [k, ts] of Object.entries(t)) if (now - ts > TOMBSTONE_TTL) delete t[k];
+  await setMeta('tombstones', t);
+}
+
+export const getTombstones = () => getMeta('tombstones', {});
+
+export async function clearTombstones(keys) {
+  const t = await getMeta('tombstones', {});
+  for (const k of keys) delete t[k];
+  await setMeta('tombstones', t);
+}
+
 export function uid() {
   if (globalThis.crypto?.randomUUID) return crypto.randomUUID();
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
@@ -94,7 +134,7 @@ async function tx(storeNames, mode, fn) {
 
 export const getDecks = () => tx('decks', 'readonly', (s) => promisify(s.decks.getAll()));
 export const getDeck = (id) => tx('decks', 'readonly', (s) => promisify(s.decks.get(id)));
-export const putDeck = (deck) => tx('decks', 'readwrite', (s) => promisify(s.decks.put({ ...deck, updatedAt: Date.now() })));
+export const putDeck = (deck) => tx('decks', 'readwrite', (s) => promisify(s.decks.put({ ...deck, updatedAt: Date.now() }))).then(notify);
 
 export async function deleteDeck(id) {
   const cards = await getCards(id);
@@ -107,6 +147,8 @@ export async function deleteDeck(id) {
     const logKeys = await promisify(s.logs.index('deckId').getAllKeys(id));
     for (const k of logKeys) s.logs.delete(k);
   });
+  await addTombstones([`deck:${id}`, ...cards.map((c) => `card:${c.id}`)]);
+  notify();
 }
 
 // ---------- Cartes ----------
@@ -115,12 +157,12 @@ export const getCards = (deckId) => tx('cards', 'readonly', (s) => promisify(s.c
 export const getAllCards = () => tx('cards', 'readonly', (s) => promisify(s.cards.getAll()));
 export const getCard = (id) => tx('cards', 'readonly', (s) => promisify(s.cards.get(id)));
 
-export const putCard = (card) => tx('cards', 'readwrite', (s) => promisify(s.cards.put(card)));
+export const putCard = (card) => tx('cards', 'readwrite', (s) => promisify(s.cards.put(card))).then(notify);
 
 export const putCards = (cards) =>
   tx('cards', 'readwrite', (s) => {
     for (const c of cards) s.cards.put(c);
-  });
+  }).then(notify);
 
 export async function deleteCard(id) {
   await tx(['cards', 'images', 'logs'], 'readwrite', async (s) => {
@@ -131,6 +173,8 @@ export async function deleteCard(id) {
     const logKeys = await promisify(s.logs.index('cardId').getAllKeys(id));
     for (const k of logKeys) s.logs.delete(k);
   });
+  await addTombstones([`card:${id}`]);
+  notify();
 }
 
 export function imageIds(card) {
@@ -160,14 +204,31 @@ export const setMeta = (key, value) => tx('meta', 'readwrite', (s) => promisify(
 
 // ---------- Sauvegarde / restauration en bloc ----------
 
-export async function bulkImport({ decks = [], cards = [], images = [], logs = [] }) {
+export async function bulkImport({ decks = [], cards = [], images = [], logs = [] }, { silent = false } = {}) {
   await tx(['decks', 'cards', 'images', 'logs'], 'readwrite', (s) => {
     for (const d of decks) s.decks.put(d);
     for (const c of cards) s.cards.put(c);
     for (const i of images) s.images.put(i);
     for (const l of logs) s.logs.put(l);
   });
+  if (!silent) notify();
 }
+
+/** Applique des suppressions venues d'un autre appareil (sans les re-signaler). */
+export async function applyRemoteDeletes({ deckIds = [], cardIds = [] }) {
+  if (!deckIds.length && !cardIds.length) return;
+  await tx(['decks', 'cards', 'images'], 'readwrite', async (s) => {
+    for (const id of deckIds) s.decks.delete(id);
+    for (const id of cardIds) {
+      const card = await promisify(s.cards.get(id));
+      if (!card) continue;
+      s.cards.delete(id);
+      for (const imgId of imageIds(card)) s.images.delete(imgId);
+    }
+  });
+}
+
+export const getImageKeys = () => tx('images', 'readonly', (s) => promisify(s.images.getAllKeys()));
 
 export async function getImages(ids) {
   return tx('images', 'readonly', (s) => Promise.all(ids.map((id) => promisify(s.images.get(id)))));
