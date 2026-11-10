@@ -8,6 +8,7 @@ export const SYMBOL_GROUPS = [
     id: 'greek',
     label: 'Grec',
     items: chars('α β γ δ ε ζ η θ ι κ λ μ ν ξ ο π ρ σ ς τ υ φ χ ψ ω Α Β Γ Δ Ε Ζ Η Θ Ι Κ Λ Μ Ν Ξ Ο Π Ρ Σ Τ Υ Φ Χ Ψ Ω'),
+    help: 'Au clavier : Ctrl+G puis une lettre (a → α, q → θ, c → χ, y → ψ, w → ω), avec Maj pour les majuscules.',
   },
   {
     id: 'ops',
@@ -49,6 +50,74 @@ export const SYMBOL_GROUPS = [
     help: 'Écris une formule entre deux $ : $x^2$, $\\frac{1}{2}$, $\\sqrt{2}$, $\\alpha + \\beta$. Elle s’affiche joliment sur la carte.',
   },
 ];
+
+// ---------- Raccourci clavier : Ctrl+G puis une lettre ----------
+
+/** Lettre latine → lettre grecque (Maj pour les majuscules). */
+export const GREEK_KEYS = {
+  a: 'α', b: 'β', g: 'γ', d: 'δ', e: 'ε', z: 'ζ', h: 'η', q: 'θ', i: 'ι', k: 'κ', l: 'λ', m: 'μ',
+  n: 'ν', x: 'ξ', o: 'ο', p: 'π', r: 'ρ', s: 'σ', j: 'ς', t: 'τ', u: 'υ', f: 'φ', c: 'χ', y: 'ψ', w: 'ω',
+};
+
+/** Lettre grecque pour une touche (« a » → α, « A » → Α), ou null. */
+export function greekFor(key) {
+  if (typeof key !== 'string' || key.length !== 1) return null;
+  const lower = key.toLowerCase();
+  const g = GREEK_KEYS[lower];
+  if (!g) return null;
+  if (key === lower) return g;
+  return g === 'ς' ? 'Σ' : g.toUpperCase();
+}
+
+function isTextField(el) {
+  if (!el || el.readOnly || el.disabled) return false;
+  if (el.tagName === 'TEXTAREA') return true;
+  return el.tagName === 'INPUT' && ['text', 'search', ''].includes(el.type) && typeof el.setRangeText === 'function';
+}
+
+/**
+ * Active le raccourci dans tous les champs de texte de l'appli :
+ * Ctrl+G (ou Cmd+G), puis une lettre → lettre grecque. Échap annule.
+ */
+export function installGreekShortcut({ notify } = {}) {
+  let waitingIn = null;
+  const stop = () => {
+    waitingIn?.classList.remove('greek-waiting');
+    waitingIn = null;
+  };
+  document.addEventListener(
+    'keydown',
+    (e) => {
+      const field = e.target;
+      if (waitingIn) {
+        if (['Shift', 'CapsLock'].includes(e.key)) return; // on attend la lettre
+        const target = waitingIn;
+        stop();
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        const letter = !e.ctrlKey && !e.metaKey && !e.altKey ? greekFor(e.key) : null;
+        if (letter && field === target) {
+          e.preventDefault();
+          e.stopPropagation();
+          insertAtCursor(target, letter);
+        }
+        return;
+      }
+      if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && (e.key === 'g' || e.key === 'G') && isTextField(field)) {
+        e.preventDefault();
+        e.stopPropagation();
+        waitingIn = field;
+        field.classList.add('greek-waiting');
+        notify?.('Lettre grecque : tape une lettre (a → α, Maj + d → Δ). Échap pour annuler.');
+      }
+    },
+    true,
+  );
+  document.addEventListener('focusout', stop, true);
+}
 
 const STORAGE_KEY = 'mnemo.symbolTab';
 
@@ -115,7 +184,7 @@ export function symbolPicker(getField, { formulas = true, compact = false } = {}
           'button.symbol-key',
           {
             type: 'button',
-            title: item.hint || item.insert,
+            title: item.hint || shortcutHint(item.insert),
             'aria-label': item.hint ? `${item.hint} (${item.label})` : item.label,
             onpointerdown: keepFocus,
             onclick: () => {
@@ -155,6 +224,14 @@ export function symbolPicker(getField, { formulas = true, compact = false } = {}
   );
   if (compact) button.setAttribute('aria-label', 'Symboles');
   return { button, panel };
+}
+
+function shortcutHint(char) {
+  for (const [k, g] of Object.entries(GREEK_KEYS)) {
+    if (g === char) return `${char} : Ctrl+G puis ${k}`;
+    if (g.toUpperCase() === char && g !== 'ς') return `${char} : Ctrl+G puis Maj+${k}`;
+  }
+  return char;
 }
 
 /** Le curseur est-il déjà entre deux $ ? */

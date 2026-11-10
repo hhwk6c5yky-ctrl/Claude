@@ -7,6 +7,7 @@ import { navigate } from '../router.js';
 import { screen, syncLabel } from './common.js';
 import { connectGithub, disconnectGithub, getGithubConfig, getGithubConnectLink, getSyncMode, getSyncStatus, syncNow } from '../sync.js';
 import { qrImage } from '../qr.js';
+import { GREEK_KEYS } from '../symbols.js';
 import { clampInt } from './deck.js';
 
 export async function settingsView() {
@@ -167,7 +168,9 @@ export async function settingsView() {
         h('div', h('dt', h('kbd', 'Z')), h('dd', 'Annuler la dernière réponse')),
         h('div', h('dt', h('kbd', 'E')), h('dd', 'Modifier la carte en cours')),
         h('div', h('dt', h('kbd', 'Ctrl'), ' + ', h('kbd', 'Entrée')), h('dd', 'Enregistrer une carte dans l’éditeur')),
+        h('div', h('dt', h('kbd', 'Ctrl'), ' + ', h('kbd', 'G'), ', puis une lettre'), h('dd', 'Lettre grecque dans n’importe quel champ (Maj pour la majuscule, Échap pour annuler)')),
       ),
+      greekTable(),
     ),
   );
 
@@ -287,6 +290,16 @@ async function buildSyncPanel(st, mode) {
       error,
       h('div.button-row.left', connectBtn),
       h('p.small.muted', 'Refais cette étape 3 sur ton autre appareil, avec le même dépôt et la même clé. Les cartes déjà présentes des deux côtés sont réunies.'),
+    ),
+  );
+}
+
+function greekTable() {
+  return h(
+    'div.greek-table',
+    { role: 'table', 'aria-label': 'Lettres grecques au clavier' },
+    Object.entries(GREEK_KEYS).map(([k, g]) =>
+      h('div.greek-cell', { role: 'row' }, h('kbd', { role: 'cell' }, k), h('span', { role: 'cell' }, g === 'ς' ? 'ς' : `${g} ${g.toUpperCase()}`)),
     ),
   );
 }

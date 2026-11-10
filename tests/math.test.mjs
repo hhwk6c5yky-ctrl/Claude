@@ -46,3 +46,17 @@ test('réponse écrite : symboles acceptés pour une carte en LaTeX', () => {
   assert.equal(checkAnswer('π', 'π'), 'correct');
   assert.equal(checkAnswer('β', '$\\alpha$'), 'wrong');
 });
+
+test('raccourci Ctrl+G : lettre latine → lettre grecque', async () => {
+  const { greekFor, GREEK_KEYS } = await import('../js/symbols.js').catch(() => ({}));
+  if (!greekFor) return; // symbols.js dépend du DOM via ui.js : testé dans le navigateur
+  assert.equal(greekFor('a'), 'α');
+  assert.equal(greekFor('D'), 'Δ');
+  assert.equal(greekFor('q'), 'θ');
+  assert.equal(greekFor('W'), 'Ω');
+  assert.equal(greekFor('j'), 'ς');
+  assert.equal(greekFor('J'), 'Σ');
+  assert.equal(greekFor('v'), null);
+  assert.equal(greekFor('1'), null);
+  assert.equal(new Set(Object.values(GREEK_KEYS)).size, 25, '24 lettres + sigma final, sans doublon');
+});

@@ -1,6 +1,7 @@
 // Point d'entrée : routes, thème, service worker.
 import { currentPath, isEmbedded, matchRoute, navigate, onRouteChange } from './router.js';
-import { applyTheme, h } from './ui.js';
+import { applyTheme, h, toast } from './ui.js';
+import { installGreekShortcut } from './symbols.js';
 import { trimImageCache } from './images.js';
 import { getPrefs } from './store.js';
 import { requestPersistence } from './db.js';
@@ -83,6 +84,7 @@ async function start() {
     return;
   }
   onRouteChange(render);
+  installGreekShortcut({ notify: (msg) => toast(msg, { duration: 2500 }) });
   render(currentPath());
   initSync().catch(() => {});
   // Données reçues d'un autre appareil : rafraîchit les écrans de consultation (jamais une révision en cours).
