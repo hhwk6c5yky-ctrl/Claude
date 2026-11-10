@@ -102,8 +102,28 @@ async function start() {
   });
   requestPersistence();
   if (!isEmbedded && 'serviceWorker' in navigator && location.protocol === 'https:') {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    registerServiceWorker();
   }
+}
+
+/** Hors connexion + mise à jour : prévient quand une nouvelle version est prête. */
+function registerServiceWorker() {
+  const hadController = Boolean(navigator.serviceWorker.controller);
+  let notified = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController || notified) return; // première installation : rien à signaler
+    notified = true;
+    toast('Nouvelle version de Mnémo installée.', { action: 'Recharger', onAction: () => location.reload(), duration: 15000 });
+  });
+  navigator.serviceWorker
+    .register('sw.js', { updateViaCache: 'none' })
+    .then((reg) => {
+      // Vérifie les mises à jour quand on revient sur l'appli.
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible') reg.update().catch(() => {});
+      });
+    })
+    .catch(() => {});
 }
 
 start();
