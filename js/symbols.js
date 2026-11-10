@@ -50,7 +50,7 @@ export const SYMBOL_GROUPS = [
       { label: '( )', insert: '\\left( | \\right)', hint: 'Grandes parenthèses' },
       { label: '$$…$$', insert: '$$|$$', hint: 'Formule centrée' },
     ],
-    help: 'Raccourcis : tape sum, frac, sqrt, vect, int, lim ou prod puis Espace. Tab passe à la case suivante, puis sort de la formule.',
+    help: 'Raccourcis : tape sum, frac, sqrt, vect, int, lim, prod, ind (indice) ou exp (exposant) puis Espace. Tab passe à la case suivante, puis sort de la formule.',
   },
 ];
 
