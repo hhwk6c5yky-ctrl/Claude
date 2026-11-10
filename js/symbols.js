@@ -157,6 +157,23 @@ export function installMathEditing({ enabled = () => true } = {}) {
     },
     true,
   );
+
+  // Claviers de téléphone : l'Espace n'arrive souvent pas comme une touche
+  // (keydown), seulement comme du texte inséré. On regarde donc aussi chaque saisie.
+  document.addEventListener('input', (e) => {
+    const field = e.target;
+    if (!field?.matches?.('textarea.side-text') || !enabled() || e.inputType !== 'insertText' || !/\s$/.test(e.data || '')) return;
+    const caret = field.selectionStart;
+    if (caret !== field.selectionEnd || caret < 1) return;
+    const space = field.value.slice(caret - 1, caret);
+    if (!/\s/.test(space)) return;
+    const withoutSpace = field.value.slice(0, caret - 1) + field.value.slice(caret);
+    const ex = expandKeyword(withoutSpace, caret - 1);
+    if (!ex) return;
+    field.setRangeText(ex.insert, ex.from, caret, 'end');
+    field.setSelectionRange(ex.caret, ex.caret);
+    field.dispatchEvent(new Event('input', { bubbles: true }));
+  });
 }
 
 const STORAGE_KEY = 'mnemo.symbolTab';
