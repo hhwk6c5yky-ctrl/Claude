@@ -58,3 +58,22 @@ test('majuscule automatique du téléphone : « Sum » marche aussi, pas « SUM 
   assert.equal(expandKeyword('SUM', 3), null);
   assert.equal(expandKeyword('Vecteur', 7), null);
 });
+
+test('ind / exp / exxp : indice et exposant collés à ce qui précède', () => {
+  const cur = (r) => r.text.slice(0, r.caret);
+  let r = expandKeyword('soit u ind', 10);
+  assert.equal(r.text, 'soit $u_{}$');
+  assert.equal(cur(r), 'soit $u_{');
+  r = expandKeyword('x exp', 5);
+  assert.equal(r.text, '$x^{}$');
+  assert.equal(expandKeyword('2 exxp', 6).text, '$2^{}$');
+  assert.equal(expandKeyword('f(x) exp', 8).text, '$f(x)^{}$', 'f(x) entier');
+  r = expandKeyword('$x$ exp', 7);
+  assert.equal(r.text, '$x^{}$', 'ajouté dans la formule qui précède');
+  assert.equal(cur(r), '$x^{');
+  r = expandKeyword('$a + u ind$', 10);
+  assert.equal(r.text, '$a + u_{}$', 'dans une formule');
+  assert.equal(expandKeyword('ind', 3).text, '$_{}$', 'sans base');
+  assert.equal(expandKeyword('find', 4), null);
+  assert.equal(expandKeyword('index', 5), null);
+});
