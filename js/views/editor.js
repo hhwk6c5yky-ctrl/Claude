@@ -112,7 +112,7 @@ export async function editorView({ deckId, cardId }) {
       back.el,
       h('div.editor-tools', swapBtn, deleteBtn),
       h('div.editor-footer', counter, isNew ? h('button.btn', { type: 'button', onclick: () => goBack(`deck/${deckId}`) }, 'Terminer') : null, saveBtn),
-      h('p.small.muted', 'Formules : écris-les entre deux $, par exemple $x^2$, $\\frac{1}{2}$ ou $\\alpha$. Le bouton « Symboles » donne les lettres grecques et les signes mathématiques.'),
+      h('p.small.muted', 'Formules : tape sum, frac, sqrt, vect, int, lim ou prod puis Espace (ou utilise « Symboles » → Formules). Tab passe à la case suivante de la formule, puis en sort.'),
       h('p.small.muted.hint', 'Lettres grecques au clavier : Ctrl+G puis une lettre (a → α, d → δ, q → θ, w → ω ; Maj pour les majuscules). Tableau complet dans Réglages.'),
       h('p.small.muted.hint', 'Astuce : sur ordinateur, colle une capture d’écran directement dans un champ (Ctrl + V), et Ctrl + Entrée pour enregistrer.'),
     ),

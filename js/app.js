@@ -1,7 +1,7 @@
 // Point d'entrée : routes, thème, service worker.
 import { currentPath, isEmbedded, matchRoute, navigate, onRouteChange } from './router.js';
 import { applyTheme, h, toast } from './ui.js';
-import { installGreekShortcut } from './symbols.js';
+import { installGreekShortcut, installMathEditing } from './symbols.js';
 import { trimImageCache } from './images.js';
 import { getPrefs } from './store.js';
 import { requestPersistence } from './db.js';
@@ -74,9 +74,13 @@ async function render(path) {
   }
 }
 
+let mathShortcuts = true;
+
 async function start() {
   try {
-    applyTheme((await getPrefs()).theme);
+    const prefs = await getPrefs();
+    applyTheme(prefs.theme);
+    mathShortcuts = prefs.mathShortcuts;
   } catch (err) {
     root.replaceChildren(
       h('main.content.error-screen', h('h1', 'Stockage indisponible'), h('p', err?.message || String(err)), h('p', 'Si tu es en navigation privée, ouvre Mnémo dans une fenêtre normale.')),
@@ -85,6 +89,10 @@ async function start() {
   }
   onRouteChange(render);
   installGreekShortcut({ notify: (msg) => toast(msg, { duration: 2500 }) });
+  installMathEditing({ enabled: () => mathShortcuts });
+  window.addEventListener('mnemo:prefs', (e) => {
+    if ('mathShortcuts' in e.detail) mathShortcuts = e.detail.mathShortcuts;
+  });
   render(currentPath());
   initSync().catch(() => {});
   // Données reçues d'un autre appareil : rafraîchit les écrans de consultation (jamais une révision en cours).

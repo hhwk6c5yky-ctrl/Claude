@@ -16,12 +16,13 @@ export async function saveSettings(patch) {
 }
 
 export async function getPrefs() {
-  return { typeAnswer: false, theme: 'auto', ...(await db.getMeta('prefs', {})) };
+  return { typeAnswer: false, theme: 'auto', mathShortcuts: true, ...(await db.getMeta('prefs', {})) };
 }
 
 export async function savePrefs(patch) {
   const current = await db.getMeta('prefs', {});
   await db.setMeta('prefs', { ...current, ...patch });
+  globalThis.dispatchEvent?.(new CustomEvent('mnemo:prefs', { detail: patch }));
 }
 
 export async function createDeck(name, extra = {}) {

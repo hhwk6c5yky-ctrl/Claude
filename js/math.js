@@ -12,17 +12,32 @@
 
 /** Découpe un texte en morceaux de texte simple et de formules. */
 export function splitMath(text) {
+  return scanMath(text).parts;
+}
+
+/**
+ * Position des formules dans le texte (pour l'édition) :
+ * [{ from, to, start, end, display }] — from/to entourent les délimiteurs,
+ * start/end le contenu de la formule.
+ */
+export function mathRanges(text) {
+  return scanMath(text).ranges;
+}
+
+function scanMath(text) {
   const src = String(text ?? '');
   const out = [];
+  const ranges = [];
   let buf = '';
   let i = 0;
   const flush = () => {
     if (buf) out.push({ type: 'text', value: buf });
     buf = '';
   };
-  const push = (value, display) => {
+  const push = (from, start, end, to, display) => {
     flush();
-    out.push({ type: 'math', value: value.trim(), display });
+    out.push({ type: 'math', value: src.slice(start, end).trim(), display });
+    ranges.push({ from, to, start, end, display });
   };
 
   while (i < src.length) {
@@ -36,7 +51,7 @@ export function splitMath(text) {
       const close = src[i + 1] === '(' ? '\\)' : '\\]';
       const end = src.indexOf(close, i + 2);
       if (end > i + 2) {
-        push(src.slice(i + 2, end), src[i + 1] === '[');
+        push(i, i + 2, end, end + 2, src[i + 1] === '[');
         i = end + 2;
         continue;
       }
@@ -44,7 +59,7 @@ export function splitMath(text) {
     if (ch === '$' && src[i + 1] === '$') {
       const end = src.indexOf('$$', i + 2);
       if (end > i + 2 && src.slice(i + 2, end).trim()) {
-        push(src.slice(i + 2, end), true);
+        push(i, i + 2, end, end + 2, true);
         i = end + 2;
         continue;
       }
@@ -52,7 +67,7 @@ export function splitMath(text) {
     if (ch === '$') {
       const end = findInlineEnd(src, i);
       if (end > 0) {
-        push(src.slice(i + 1, end), false);
+        push(i, i + 1, end, end + 1, false);
         i = end + 1;
         continue;
       }
@@ -61,7 +76,7 @@ export function splitMath(text) {
     i += 1;
   }
   flush();
-  return out;
+  return { parts: out, ranges };
 }
 
 // $…$ : pas d'espace juste après le $ ouvrant ni juste avant le $ fermant,
