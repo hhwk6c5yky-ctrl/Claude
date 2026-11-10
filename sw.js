@@ -1,6 +1,6 @@
 // Service worker : permet d'utiliser Mnémo hors connexion.
 // Pense à changer VERSION à chaque mise à jour des fichiers de l'appli.
-const VERSION = 'mnemo-v8';
+const VERSION = 'mnemo-v9';
 const FONT_CACHE = 'mnemo-fonts';
 
 const APP_FILES = [
@@ -69,7 +69,9 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
       .open(VERSION)
-      .then((cache) => cache.addAll(APP_FILES))
+      // cache: 'reload' : on prend les fichiers sur le serveur, pas les anciennes copies
+      // gardées par le navigateur (GitHub Pages les garde 10 min).
+      .then((cache) => cache.addAll(APP_FILES.map((url) => new Request(url, { cache: 'reload' }))))
       .then(() => self.skipWaiting()),
   );
 });
@@ -107,7 +109,7 @@ self.addEventListener('fetch', (event) => {
   // Pages : réseau d'abord (pour recevoir les mises à jour), cache si hors ligne.
   if (req.mode === 'navigate') {
     event.respondWith(
-      fetch(req)
+      fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' })
         .then((res) => {
           const copy = res.clone();
           caches.open(VERSION).then((c) => c.put('index.html', copy));
@@ -122,7 +124,7 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.open(VERSION).then(async (cache) => {
       const hit = await cache.match(req, { ignoreSearch: true });
-      const network = fetch(req)
+      const network = fetch(req.url, { cache: 'no-cache', credentials: 'same-origin' })
         .then((res) => {
           if (res.ok) cache.put(req, res.clone());
           return res;
