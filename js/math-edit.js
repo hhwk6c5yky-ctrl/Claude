@@ -28,12 +28,15 @@ function rangeAt(text, caret) {
  */
 export function expandKeyword(text, caret) {
   const before = text.slice(0, caret);
-  const m = /(^|[^A-Za-z\\])([a-z]+)$/.exec(before);
-  if (!m || !MATH_KEYWORDS[m[2]]) return null;
+  const m = /(^|[^A-Za-z\\])([A-Za-z]+)$/.exec(before);
+  if (!m) return null;
   const word = m[2];
+  const key = word.toLowerCase();
+  // « sum » ou « Sum » (majuscule automatique du téléphone), mais pas « SUM ».
+  if (!MATH_KEYWORDS[key] || (word !== key && word !== key[0].toUpperCase() + key.slice(1))) return null;
   const wordStart = caret - word.length;
   const inMath = Boolean(rangeAt(text, wordStart));
-  let snippet = MATH_KEYWORDS[word];
+  let snippet = MATH_KEYWORDS[key];
   if (!inMath) snippet = `$${snippet}$`;
   const pos = snippet.indexOf('|');
   const clean = snippet.replace('|', '');

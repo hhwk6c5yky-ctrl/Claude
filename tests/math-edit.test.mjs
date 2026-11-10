@@ -30,7 +30,6 @@ test('mots ordinaires non transformés', () => {
   assert.equal(expandKeyword('vecteur', 7), null);
   assert.equal(expandKeyword('avec', 4), null);
   assert.equal(expandKeyword('$\\sum', 5), null, 'commande LaTeX déjà écrite');
-  assert.equal(expandKeyword('Sum', 3), null, 'majuscule : texte normal');
 });
 
 test('Tab : numérateur → dénominateur → sortie de la formule', () => {
@@ -51,4 +50,11 @@ test('Tab dans une somme : borne du bas → borne du haut ; Maj+Tab revient', ()
   const t2 = '$\\frac{}{}$';
   assert.equal(prevBox(t2, '$\\frac{}{'.length), '$\\frac{'.length);
   assert.equal(prevBox(t2, '$\\frac{'.length), null);
+});
+
+test('majuscule automatique du téléphone : « Sum » marche aussi, pas « SUM »', () => {
+  assert.equal(expandKeyword('Sum', 3).text, '$\\sum_{}^{}$');
+  assert.equal(expandKeyword('Frac', 4).text, '$\\frac{}{}$');
+  assert.equal(expandKeyword('SUM', 3), null);
+  assert.equal(expandKeyword('Vecteur', 7), null);
 });
