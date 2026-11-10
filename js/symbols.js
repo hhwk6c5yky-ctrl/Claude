@@ -1,5 +1,6 @@
 // Clavier de symboles : lettres grecques, symboles mathématiques, exposants, formules.
 import { h } from './ui.js';
+import { expandKeyword, nextBox, prevBox } from './math-edit.js';
 
 const chars = (s) => s.split(' ').map((c) => ({ label: c, insert: c }));
 
@@ -42,12 +43,14 @@ export const SYMBOL_GROUPS = [
       { label: 'xₙ', insert: '_{|}', hint: 'Indice' },
       { label: '∫', insert: '\\int_{|}^{}', hint: 'Intégrale' },
       { label: '∑', insert: '\\sum_{|}^{}', hint: 'Somme' },
+      { label: '∑ k=…', insert: '\\sum_{k=|}^{}', hint: 'Somme de k = … à …' },
+      { label: '∑ série', insert: '\\sum_{n=|}^{+\\infty}', hint: 'Série : n = … à +∞' },
       { label: 'lim', insert: '\\lim_{x \\to |}', hint: 'Limite' },
       { label: 'u →', insert: '\\vec{|}', hint: 'Vecteur' },
       { label: '( )', insert: '\\left( | \\right)', hint: 'Grandes parenthèses' },
       { label: '$$…$$', insert: '$$|$$', hint: 'Formule centrée' },
     ],
-    help: 'Écris une formule entre deux $ : $x^2$, $\\frac{1}{2}$, $\\sqrt{2}$, $\\alpha + \\beta$. Elle s’affiche joliment sur la carte.',
+    help: 'Raccourcis : tape sum, frac, sqrt, vect, int, lim ou prod puis Espace. Tab passe à la case suivante, puis sort de la formule.',
   },
 ];
 
@@ -117,6 +120,43 @@ export function installGreekShortcut({ notify } = {}) {
     true,
   );
   document.addEventListener('focusout', stop, true);
+}
+
+// ---------- Saisie des formules dans l'éditeur ----------
+
+/**
+ * Dans les champs de l'éditeur de cartes :
+ * - « sum », « frac », « vect »… puis Espace (ou Tab) → formule, curseur dans la 1re case ;
+ * - Tab → case vide suivante, puis sortie de la formule ; Maj+Tab → case précédente.
+ * @param {{enabled: () => boolean}} opts
+ */
+export function installMathEditing({ enabled = () => true } = {}) {
+  document.addEventListener(
+    'keydown',
+    (e) => {
+      const field = e.target;
+      if (!field?.matches?.('textarea.side-text') || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+      if (field.selectionStart !== field.selectionEnd) return;
+      const caret = field.selectionStart;
+      const isTab = e.key === 'Tab';
+      if ((e.key === ' ' || (isTab && !e.shiftKey)) && enabled()) {
+        const ex = expandKeyword(field.value, caret);
+        if (ex) {
+          e.preventDefault();
+          field.setRangeText(ex.insert, ex.from, ex.to, 'end');
+          field.setSelectionRange(ex.caret, ex.caret);
+          field.dispatchEvent(new Event('input', { bubbles: true }));
+          return;
+        }
+      }
+      if (!isTab) return;
+      const target = e.shiftKey ? prevBox(field.value, caret) : nextBox(field.value, caret);
+      if (target === null) return; // hors formule : Tab garde son rôle habituel
+      e.preventDefault();
+      field.setSelectionRange(target, target);
+    },
+    true,
+  );
 }
 
 const STORAGE_KEY = 'mnemo.symbolTab';

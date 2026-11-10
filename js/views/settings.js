@@ -144,7 +144,16 @@ export async function settingsView() {
       h('p.small.muted', lastBackup ? `Dernière sauvegarde : ${new Date(lastBackup).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}.` : 'Aucune sauvegarde faite depuis cet appareil.', usage ? ` ${usage}.` : '', persisted ? ' Stockage protégé contre l’effacement automatique.' : ''),
       !persisted && !syncOn ? h('p.small.muted', 'Sur iPhone, ajoute Mnémo à l’écran d’accueil (bouton Partager → « Sur l’écran d’accueil ») : Safari efface sinon les données des sites inutilisés pendant plusieurs semaines.') : null,
     ),
-    h('section.panel', h('h2', 'Affichage'), h('div.field', h('span.label', 'Thème'), themeGroup)),
+    h(
+      'section.panel',
+      h('h2', 'Affichage et saisie'),
+      h('div.field', h('span.label', 'Thème'), themeGroup),
+      h(
+        'label.check',
+        h('input', { id: 'pref-math-shortcuts', type: 'checkbox', checked: prefs.mathShortcuts, onchange: (e) => savePrefs({ mathShortcuts: e.target.checked }) }),
+        h('span', 'Raccourcis de formules : sum, frac, sqrt, vect, int, lim, prod + Espace'),
+      ),
+    ),
     h(
       'section.panel',
       h('h2', 'Répétition espacée'),
@@ -168,6 +177,8 @@ export async function settingsView() {
         h('div', h('dt', h('kbd', 'Z')), h('dd', 'Annuler la dernière réponse')),
         h('div', h('dt', h('kbd', 'E')), h('dd', 'Modifier la carte en cours')),
         h('div', h('dt', h('kbd', 'Ctrl'), ' + ', h('kbd', 'Entrée')), h('dd', 'Enregistrer une carte dans l’éditeur')),
+        h('div', h('dt', h('kbd', 'sum'), ' + ', h('kbd', 'Espace')), h('dd', 'Formule (aussi frac, sqrt, vect, int, lim, prod), curseur dans la première case')),
+        h('div', h('dt', h('kbd', 'Tab')), h('dd', 'Dans une formule : case suivante, puis sortie de la formule (Maj+Tab : case précédente)')),
         h('div', h('dt', h('kbd', 'Ctrl'), ' + ', h('kbd', 'G'), ', puis une lettre'), h('dd', 'Lettre grecque dans n’importe quel champ (Maj pour la majuscule, Échap pour annuler)')),
       ),
       greekTable(),
