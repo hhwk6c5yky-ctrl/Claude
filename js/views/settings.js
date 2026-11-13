@@ -47,6 +47,25 @@ export async function settingsView() {
     maximumInterval: numInput('set-max', settings.maximumInterval, 1, 36500),
     startingEase: numInput('set-ease', settings.startingEase, 1.3, 5, 0.05),
   };
+  // Algorithme et rétention visée
+  let algorithm = settings.algorithm === 'sm2' ? 'sm2' : 'fsrs';
+  const algoGroup = h('div.segmented', { role: 'radiogroup', 'aria-label': 'Algorithme' });
+  const sm2Only = h('div.form');
+  const fsrsOnly = h('div.form');
+  const paintAlgo = () => {
+    for (const b of algoGroup.children) b.setAttribute('aria-checked', String(b.dataset.id === algorithm));
+    sm2Only.hidden = algorithm !== 'sm2';
+    fsrsOnly.hidden = algorithm !== 'fsrs';
+  };
+  for (const [id, label] of [['fsrs', 'FSRS (recommandé)'], ['sm2', 'SM-2 (classique)']]) {
+    algoGroup.append(h('button', { type: 'button', role: 'radio', dataset: { id }, onclick: () => { algorithm = id; paintAlgo(); } }, label));
+  }
+  const retention = h(
+    'select.input',
+    { id: 'set-retention' },
+    [0.8, 0.85, 0.9, 0.93, 0.95].map((r) => h('option', { value: String(r), selected: Math.abs(r - settings.desiredRetention) < 1e-9 }, `${Math.round(r * 100)} %${r === 0.9 ? ' (conseillé)' : ''}`)),
+  );
+
   const parseSteps = (v) =>
     v
       .split(/[\s,;]+/)
@@ -65,6 +84,8 @@ export async function settingsView() {
     const easyInterval = Math.max(graduatingInterval, clampInt(fields.easyInterval.value, 1, 365, DEFAULT_SETTINGS.easyInterval));
     const startingEase = Math.min(5, Math.max(1.3, parseFloat(String(fields.startingEase.value).replace(',', '.')) || DEFAULT_SETTINGS.startingEase));
     await saveSettings({
+      algorithm,
+      desiredRetention: Math.min(0.97, Math.max(0.7, parseFloat(retention.value) || 0.9)),
       learningSteps,
       relearningSteps,
       graduatingInterval,
@@ -133,6 +154,17 @@ export async function settingsView() {
   const syncOn = Boolean(mode);
   const syncPanel = await buildSyncPanel(st, mode);
 
+  fsrsOnly.append(
+    h('p.small', 'FSRS est l’algorithme moderne d’Anki. Il estime pour chaque carte la probabilité que tu t’en souviennes, en tenant compte de sa difficulté et de toutes tes réponses, et la fait revenir juste avant que tu risques de l’oublier. Pour le même résultat, il demande en général moins de révisions que SM-2.'),
+    labeled('Rétention visée', retention, 'Probabilité de te souvenir d’une carte quand elle revient. Plus haut = tu retiens mieux, mais avec plus de révisions par jour. 90 % est un bon équilibre ; 95 % juste avant un examen.'),
+  );
+  sm2Only.append(
+    h('p.small', 'SM-2 est l’algorithme historique d’Anki : après les étapes, la carte revient au bout d’un jour, puis l’intervalle est multiplié par la « facilité » de la carte (2,5 au départ) à chaque bonne réponse.'),
+    h('div.field-row', labeled('Premier intervalle (jours)', fields.graduatingInterval), labeled('Intervalle « Facile » (jours)', fields.easyInterval)),
+    h('div.field-row', labeled('Facilité de départ', fields.startingEase, '2,5 par défaut')),
+  );
+  paintAlgo();
+
   const body = h(
     'div.settings',
     syncPanel,
@@ -157,12 +189,13 @@ export async function settingsView() {
     h(
       'section.panel',
       h('h2', 'Répétition espacée'),
-      h('p.small', 'Mnémo planifie chaque carte comme Anki (algorithme SM-2). Une carte nouvelle passe par des étapes courtes, puis revient après 1 jour, puis à des intervalles de plus en plus longs tant que tu la sais. Si tu l’oublies, elle repart sur des intervalles courts.'),
+      h('div.field', h('span.label', 'Algorithme'), algoGroup),
+      fsrsOnly,
+      sm2Only,
       h(
         'div.form',
         h('div.field-row', labeled('Étapes d’apprentissage (min)', fields.learningSteps, 'Ex. : 1 10'), labeled('Étapes après un oubli (min)', fields.relearningSteps, 'Ex. : 10')),
-        h('div.field-row', labeled('Premier intervalle (jours)', fields.graduatingInterval), labeled('Intervalle « Facile » (jours)', fields.easyInterval)),
-        h('div.field-row', labeled('Intervalle maximum (jours)', fields.maximumInterval), labeled('Facilité de départ', fields.startingEase, '2,5 par défaut')),
+        h('div.field-row', labeled('Intervalle maximum (jours)', fields.maximumInterval)),
       ),
       h('p.small.muted', 'Le nombre de nouvelles cartes par jour se règle dans chaque paquet (menu ⋯).'),
       h('div.button-row.left', h('button.btn.primary', { type: 'button', onclick: saveAlgo }, 'Enregistrer'), h('button.btn.ghost', { type: 'button', onclick: resetAlgo }, 'Valeurs par défaut')),

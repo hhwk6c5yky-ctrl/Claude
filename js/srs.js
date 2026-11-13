@@ -1,4 +1,6 @@
-// Répétition espacée : variante de l'algorithme SM-2 utilisée par Anki.
+// Répétition espacée. Deux algorithmes au choix :
+//   - FSRS (par défaut) : modèle de mémoire moderne, voir fsrs.js ;
+//   - SM-2 : l'algorithme historique d'Anki, conservé en option.
 //
 // Chaque carte passe par quatre états :
 //   new        → jamais étudiée
@@ -8,6 +10,8 @@
 //
 // Les fonctions de ce module sont pures : elles prennent l'état d'une carte et
 // renvoient un nouvel état, ce qui permet de les tester sans navigateur.
+
+import { intervalFor, memoryFromSm2, nextMemory } from './fsrs.js';
 
 export const MINUTE = 60 * 1000;
 export const DAY = 24 * 60 * MINUTE;
@@ -28,6 +32,8 @@ export const DEFAULT_SETTINGS = Object.freeze({
   maximumInterval: 36500,
   dayStartHour: 4, // la journée de révision commence à 4 h du matin, comme dans Anki
   learnAheadMinutes: 20,
+  algorithm: 'fsrs', // 'fsrs' ou 'sm2'
+  desiredRetention: 0.9, // FSRS : probabilité visée de se souvenir au moment de la révision
 });
 
 export function newSrs() {
@@ -82,6 +88,8 @@ function normalise(settings) {
  */
 export function schedule(srs, rating, now = Date.now(), settings = DEFAULT_SETTINGS, rng = Math.random) {
   const s = normalise(settings);
+  if (![1, 2, 3, 4].includes(rating)) throw new Error(`Note inconnue : ${rating}`);
+  if (s.algorithm !== 'sm2') return scheduleFsrs(srs, rating, now, s, rng);
   const c = { ...newSrs(), ...srs };
   const today = dayStart(now, s.dayStartHour);
   c.reps += 1;
@@ -181,6 +189,87 @@ export function schedule(srs, rating, now = Date.now(), settings = DEFAULT_SETTI
   }
   c.interval = Math.min(s.maximumInterval, Math.max(1, fuzzInterval(iv, rng)));
   c.due = addDays(today, c.interval);
+  return c;
+}
+
+/**
+ * FSRS avec les mêmes étapes d'apprentissage que SM-2 (1 min, 10 min…).
+ * La stabilité et la difficulté sont mises à jour à chaque réponse, y compris
+ * pendant les étapes ; l'intervalle en jours vient de la stabilité.
+ */
+function scheduleFsrs(srs, rating, now, s, rng) {
+  const c = { ...newSrs(), ...srs };
+  const today = dayStart(now, s.dayStartHour);
+  const elapsed = c.lastReview ? Math.max(0, daysBetween(dayStart(c.lastReview, s.dayStartHour), today)) : 0;
+
+  // État de mémoire actuel. Une carte déjà révisée avec SM-2 est convertie.
+  let mem = Number.isFinite(c.s) && Number.isFinite(c.d) ? { s: c.s, d: c.d } : null;
+  if (!mem && (c.state === 'review' || c.state === 'relearning')) mem = memoryFromSm2(c.interval, c.ease);
+  const after = (g) => nextMemory(mem, mem ? elapsed : 0, g);
+  const days = (m) => intervalFor(m.s, s.desiredRetention, s.maximumInterval);
+
+  // Intervalles des trois boutons « réussis », dans l'ordre Difficile ≤ Correct < Facile.
+  const hardIv = Math.min(days(after(2)), days(after(3)));
+  const goodIv = Math.max(days(after(3)), hardIv + 1);
+  const easyIv = Math.max(days(after(4)), goodIv + 1);
+
+  const m = after(rating);
+  c.s = m.s;
+  c.d = m.d;
+  c.reps += 1;
+  c.lastReview = now;
+  if (!c.ease) c.ease = s.startingEase; // garde SM-2 utilisable si on revient en arrière
+
+  const graduate = (iv) => {
+    c.state = 'review';
+    c.step = 0;
+    c.interval = Math.min(s.maximumInterval, Math.max(1, fuzzInterval(iv, rng)));
+    c.due = addDays(today, c.interval);
+  };
+  const stepTo = (minutes) => {
+    c.due = now + Math.round(minutes * MINUTE);
+  };
+
+  if (c.state === 'new') {
+    c.state = 'learning';
+    c.step = 0;
+  }
+
+  if (c.state === 'learning' || c.state === 'relearning') {
+    const steps = c.state === 'relearning' ? s.relearningSteps : s.learningSteps;
+    // En fin d'étapes, l'intervalle vient directement de la stabilité (comme ts-fsrs).
+    if (!steps.length) {
+      graduate(days(m));
+      return c;
+    }
+    const step = Math.min(c.step, steps.length - 1);
+    if (rating === Rating.Again) {
+      c.step = 0;
+      stepTo(steps[0]);
+    } else if (rating === Rating.Hard) {
+      c.step = step;
+      stepTo(hardDelay(steps, step));
+    } else if (rating === Rating.Good) {
+      if (step + 1 < steps.length) {
+        c.step = step + 1;
+        stepTo(steps[c.step]);
+      } else graduate(days(m));
+    } else graduate(days(m));
+    return c;
+  }
+
+  // Révision
+  if (rating === Rating.Again) {
+    c.lapses += 1;
+    c.interval = days(m);
+    if (s.relearningSteps.length) {
+      c.state = 'relearning';
+      c.step = 0;
+      stepTo(s.relearningSteps[0]);
+    } else graduate(c.interval);
+    return c;
+  }
+  graduate(rating === Rating.Hard ? hardIv : rating === Rating.Good ? goodIv : easyIv);
   return c;
 }
 

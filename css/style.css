@@ -2193,3 +2193,13 @@ textarea.input {
   background: var(--surface-2);
   font-size: 1.05rem;
 }
+
+.memory-line {
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+.memory-line strong {
+  color: var(--good);
+  font-variant-numeric: tabular-nums;
+}

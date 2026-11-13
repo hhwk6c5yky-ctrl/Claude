@@ -4,7 +4,7 @@ Mnémo est une appli de flashcards qui fonctionne dans le navigateur, sur télé
 
 ## Ce que fait l'appli
 
-- **Répétition espacée** comme dans Anki (algorithme SM-2). Après chaque carte, tu indiques si tu as répondu *À revoir*, *Difficile*, *Correct* ou *Facile*. Mnémo calcule quand la carte doit revenir : quelques minutes pour une carte ratée, puis 1 jour, 3 jours, 1 semaine, 1 mois… tant que tu la sais. Chaque bouton affiche le délai correspondant.
+- **Répétition espacée** avec FSRS, l'algorithme moderne d'Anki. Après chaque carte, tu indiques si tu as répondu *À revoir*, *Difficile*, *Correct* ou *Facile*. Mnémo estime ta mémoire de chaque carte et la fait revenir juste avant que tu risques de l'oublier. Chaque bouton affiche le délai correspondant.
 - **Mémoire active** : tu cherches la réponse avant de la voir. Tu peux aussi l'écrire au clavier : l'appli la vérifie, en tolérant les majuscules, une faute de frappe ou un accent oublié (elle te le signale quand même).
 - **Photos au recto et/ou au verso** : prends une photo, choisis une image de la galerie ou colle une capture d'écran (Ctrl + V sur ordinateur). Les images sont redimensionnées et compressées automatiquement. Touche une image pendant la révision pour l'agrandir.
 - **Maths et alphabet grec** : un clavier « Symboles » (lettres grecques, opérations, ensembles, exposants et indices, géométrie) s'ouvre sous chaque champ, y compris pour écrire une réponse. Les formules s'écrivent entre deux `$` comme dans Anki : `$\frac{1}{2}$`, `$x^2$`, `$\sqrt{2}$`, ou `$$…$$` pour une formule centrée. Elles s'affichent avec KaTeX, livré avec l'appli (marche hors connexion), et un aperçu apparaît pendant la saisie. En mode écriture, `α` est accepté pour une réponse écrite `$\alpha$`.
@@ -66,15 +66,22 @@ Les cartes sont stockées dans le navigateur de l'appareil. Pense à faire régu
 
 ## Comment marche la répétition espacée
 
-| Situation | Ce qui se passe |
-| --- | --- |
-| Nouvelle carte | Étapes d'apprentissage : 1 min puis 10 min |
-| Étapes réussies | La carte passe en révision : elle revient dans 1 jour (4 jours si *Facile*) |
-| *Correct* en révision | Intervalle × facilité (2,5 au départ) : 1 j → 3 j → 8 j → 20 j → 50 j → … |
-| *Difficile* | Intervalle × 1,2 et la carte devient un peu plus « difficile » |
-| *À revoir* (oubli) | Retour à une étape courte (10 min), puis on repart de 1 jour |
+Mnémo utilise **FSRS** (Free Spaced Repetition Scheduler, version 6), l'algorithme moderne d'Anki. Pour chaque carte, il suit deux grandeurs :
 
-Une journée de révision commence à 4 h du matin. Chaque paquet a une limite de nouvelles cartes par jour (20 par défaut, modifiable dans le menu ⋯ du paquet) ; à la fin d'une séance, tu peux en étudier 10 de plus, ce qui est pratique avant un contrôle. Les étapes et intervalles se règlent dans **Réglages**.
+- la **stabilité** : le nombre de jours au bout desquels tu as encore 90 % de chances de te souvenir de la carte ;
+- la **difficulté**, de 1 à 10, qui ajuste la vitesse à laquelle la stabilité grandit.
+
+À chaque réponse, FSRS met à jour ces deux valeurs et fait revenir la carte quand la probabilité de t'en souvenir descend à la **rétention visée** (90 % par défaut, réglable de 80 à 95 % dans Réglages). Une carte facile s'espace vite ; une carte souvent oubliée revient plus souvent.
+
+| Exemple (rétention 90 %) | Intervalles successifs |
+| --- | --- |
+| Nouvelle carte, toujours *Correct* | 10 min → 2 j → 11 j → 46 j → 163 j |
+| Un oubli au 3e passage | 10 min → 2 j → 11 j → *oubli* (10 min) → 2 j → 5 j → 12 j |
+| Première réponse *Facile* | 8 j → 39 j → … |
+
+Les nouvelles cartes passent d'abord par des étapes courtes (1 min, 10 min), et une carte oubliée repasse par une étape de 10 min. Une journée de révision commence à 4 h du matin. Chaque paquet a une limite de nouvelles cartes par jour (20 par défaut, menu ⋯ du paquet) ; à la fin d'une séance, tu peux en étudier 10 de plus.
+
+Les calculs sont identiques à ceux de [ts-fsrs](https://github.com/open-spaced-repetition/ts-fsrs), la bibliothèque de référence du projet FSRS : les tests le vérifient. L'ancien algorithme d'Anki, **SM-2**, reste disponible dans Réglages. Les cartes déjà révisées avec SM-2 continuent sans repartir de zéro.
 
 ## Pour les développeurs
 
@@ -91,7 +98,8 @@ npm test
 
 | Fichier | Rôle |
 | --- | --- |
-| `js/srs.js` | Algorithme de répétition espacée (fonctions pures) |
+| `js/srs.js` | Planification des cartes (étapes, FSRS ou SM-2) |
+| `js/fsrs.js` | Modèle de mémoire FSRS-6 (fonctions pures) |
 | `js/session.js` | File d'attente d'une séance : nouvelles cartes, apprentissage, révisions, annulation |
 | `js/importer.js` | Lecture du texte Quizlet / Anki / CSV |
 | `js/answer.js` | Vérification des réponses écrites |

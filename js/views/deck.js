@@ -38,6 +38,9 @@ export async function deckView({ deckId }) {
     ),
     nextInfo ? h('p.muted.small', nextInfo) : null,
     cards.length ? progressBar(sum) : null,
+    sum.memory !== null && settings.algorithm !== 'sm2'
+      ? h('p.memory-line', h('strong', `${Math.round(sum.memory * 100)} %`), ' : chances moyennes de te souvenir aujourd’hui des cartes déjà étudiées (estimation FSRS).')
+      : null,
   );
 
   const list = h('ul.card-list');
