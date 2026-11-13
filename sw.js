@@ -1,6 +1,6 @@
 // Service worker : permet d'utiliser Mnémo hors connexion.
 // Pense à changer VERSION à chaque mise à jour des fichiers de l'appli.
-const VERSION = 'mnemo-v10';
+const VERSION = 'mnemo-v11';
 const FONT_CACHE = 'mnemo-fonts';
 
 const APP_FILES = [
@@ -27,6 +27,7 @@ const APP_FILES = [
   'js/router.js',
   'js/session.js',
   'js/srs.js',
+  'js/fsrs.js',
   'js/store.js',
   'js/ui.js',
   'js/views/common.js',

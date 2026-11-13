@@ -2,6 +2,7 @@
 import * as db from './db.js';
 import { DEFAULT_SETTINGS, dayStart, isMature, newSrs } from './srs.js';
 import { dueCounts } from './session.js';
+import { memoryFromSm2, retrievability } from './fsrs.js';
 
 export const DECK_DEFAULTS = { newPerDay: 20, reviewsPerDay: 200 };
 
@@ -91,7 +92,24 @@ export function deckSummary(deck, cards, done, settings, now = Date.now()) {
   const nextDue = cards
     .filter((c) => c.srs.state !== 'new')
     .reduce((min, c) => Math.min(min, c.srs.due), Infinity);
-  return { total: cards.length, fresh, learning, young, mature, due, dueTotal: due.fresh + due.learn + due.review, nextDue };
+  return { total: cards.length, fresh, learning, young, mature, due, dueTotal: due.fresh + due.learn + due.review, nextDue, memory: estimatedMemory(cards, now) };
+}
+
+/**
+ * Pourcentage moyen de chances de se souvenir, aujourd'hui, des cartes déjà étudiées
+ * (modèle FSRS). null s'il n'y a encore aucune carte étudiée.
+ */
+export function estimatedMemory(cards, now = Date.now()) {
+  let sum = 0;
+  let n = 0;
+  for (const c of cards) {
+    const srs = c.srs;
+    if (srs.state === 'new' || !srs.lastReview) continue;
+    const mem = Number.isFinite(srs.s) ? { s: srs.s } : memoryFromSm2(srs.interval, srs.ease);
+    sum += retrievability((now - srs.lastReview) / 86400000, mem.s);
+    n += 1;
+  }
+  return n ? sum / n : null;
 }
 
 /** Enregistre une réponse : met la carte à jour et garde une trace dans l'historique. */
