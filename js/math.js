@@ -122,7 +122,7 @@ const SYMBOLS = {
   rightarrow: '→', leftarrow: '←', leftrightarrow: '↔', Rightarrow: '⇒', Leftarrow: '⇐', Leftrightarrow: '⇔',
   implies: '⇒', iff: '⇔', mapsto: '↦', angle: '∠', perp: '⊥', parallel: '∥', circ: '∘', degree: '°',
   ldots: '…', cdots: '⋯', dots: '…', hbar: 'ℏ', ell: 'ℓ', prime: '′', star: '⋆', ast: '∗', sqrt: '√',
-  lbrace: '{', rbrace: '}', langle: '⟨', rangle: '⟩', vert: '|', mid: '|',
+  lbrace: '{', rbrace: '}', langle: '⟨', rangle: '⟩', vert: '|', mid: '|', lvert: '|', rvert: '|',
 };
 
 const SUP = { 0: '⁰', 1: '¹', 2: '²', 3: '³', 4: '⁴', 5: '⁵', 6: '⁶', 7: '⁷', 8: '⁸', 9: '⁹', '+': '⁺', '-': '⁻', '=': '⁼', '(': '⁽', ')': '⁾', n: 'ⁿ', i: 'ⁱ', x: 'ˣ' };

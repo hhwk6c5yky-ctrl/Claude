@@ -60,3 +60,9 @@ test('raccourci Ctrl+G : lettre latine → lettre grecque', async () => {
   assert.equal(greekFor('1'), null);
   assert.equal(new Set(Object.values(GREEK_KEYS)).size, 25, '24 lettres + sigma final, sans doublon');
 });
+
+test('barre, valeur absolue et infini en texte lisible', () => {
+  assert.equal(texToPlain('\\left\\lvert{x-1}\\right\\rvert'), '|x-1|');
+  assert.equal(texToPlain('x \\to +\\infty'), 'x → +∞');
+  assert.equal(texToPlain('\\overline{z}'), 'z̅');
+});
