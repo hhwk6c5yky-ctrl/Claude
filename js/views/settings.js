@@ -183,7 +183,7 @@ export async function settingsView() {
       h(
         'label.check',
         h('input', { id: 'pref-math-shortcuts', type: 'checkbox', checked: prefs.mathShortcuts, onchange: (e) => savePrefs({ mathShortcuts: e.target.checked }) }),
-        h('span', 'Raccourcis de formules : sum, frac, sqrt, vect, int, lim, prod, ind, exp + Espace'),
+        h('span', 'Raccourcis de formules : sum, frac, sqrt, vect, int, lim, prod, abs, inf, ind, exp, bar + Espace'),
       ),
     ),
     h(
@@ -212,6 +212,8 @@ export async function settingsView() {
         h('div', h('dt', h('kbd', 'Ctrl'), ' + ', h('kbd', 'Entrée')), h('dd', 'Enregistrer une carte dans l’éditeur')),
         h('div', h('dt', h('kbd', 'sum'), ' + ', h('kbd', 'Espace')), h('dd', 'Formule (aussi frac, sqrt, vect, int, lim, prod), curseur dans la première case')),
         h('div', h('dt', h('kbd', 'u ind'), ' + ', h('kbd', 'Espace')), h('dd', 'u avec un indice (exp ou exxp pour un exposant : « x exp » → x puissance)')),
+        h('div', h('dt', h('kbd', 'z bar'), ' + ', h('kbd', 'Espace')), h('dd', 'z avec une barre au-dessus (conjugué, adhérence…) ; « bar » seul : barre vide')),
+        h('div', h('dt', h('kbd', 'abs'), ' / ', h('kbd', 'inf')), h('dd', 'Valeur absolue |…| (curseur dedans) / symbole ∞')),
         h('div', h('dt', h('kbd', 'Tab')), h('dd', 'Dans une formule : case suivante, puis sortie de la formule (Maj+Tab : case précédente)')),
         h('div', h('dt', h('kbd', 'Ctrl'), ' + ', h('kbd', 'G'), ', puis une lettre'), h('dd', 'Lettre grecque dans n’importe quel champ (Maj pour la majuscule, Échap pour annuler)')),
       ),

@@ -19,10 +19,16 @@ export const MATH_KEYWORDS = {
   ind: '_{|}',
   exp: '^{|}',
   exxp: '^{|}',
+  abs: '\\left\\lvert{|}\\right\\rvert', // \lvert plutôt que | : « | » marque le curseur
+  inf: '\\infty', // sans case : le curseur se place juste après
+  bar: '\\overline{|}',
 };
 
 /** Indice et exposant : collés au mot, au nombre ou à la formule qui précède. */
 const ATTACHED = new Set(['ind', 'exp', 'exxp']);
+
+/** Barre au-dessus : seulement sur une lettre (z, x1), un nombre ou un groupe ( ), pas sur un mot (« au bar »). */
+const BAR_BASE = /^(?:[A-Za-z]\d*|\d+)$/;
 
 function rangeAt(text, caret) {
   return mathRanges(text).find((r) => caret >= r.start && caret <= r.end) || null;
@@ -45,9 +51,15 @@ export function expandKeyword(text, caret) {
     const attached = attach(text, wordStart, caret, MATH_KEYWORDS[key]);
     if (attached) return attached;
   }
+  if (key === 'bar') {
+    const barred = overbar(text, wordStart, caret);
+    if (barred !== undefined) return barred; // null = mot ordinaire, on n'y touche pas
+  }
   const inMath = Boolean(rangeAt(text, wordStart));
   let snippet = MATH_KEYWORDS[key];
-  if (!inMath) snippet = `$${snippet}$`;
+  // Sans case à remplir (∞) : on garde l'espace tapée et le curseur se place après.
+  if (!snippet.includes('|')) snippet = inMath ? `${snippet} |` : `$${snippet}$ |`;
+  else if (!inMath) snippet = `$${snippet}$`;
   const pos = snippet.indexOf('|');
   const clean = snippet.replace('|', '');
   return { text: text.slice(0, wordStart) + clean + text.slice(caret), caret: wordStart + pos, from: wordStart, to: caret, insert: clean };
@@ -75,6 +87,32 @@ function attach(text, wordStart, caret, snippet) {
   }
   // Texte normal : la base et son indice/exposant forment une nouvelle formule.
   return done(baseStart, `$${m[1]}${clean}$`, baseStart + 1 + m[1].length + pos);
+}
+
+// « z bar » → $\overline{z}$ ; « $x+y$ bar » → $\overline{x+y}$ ; « (a+b) bar » → $\overline{(a+b)}$.
+// Renvoie undefined pour une barre seule (cas général), null pour un mot ordinaire (« au bar »).
+function overbar(text, wordStart, caret) {
+  const head = text.slice(0, wordStart).replace(/ $/, '');
+  const done = (from, insert, caretAt) => ({ text: text.slice(0, from) + insert + text.slice(caret), caret: caretAt, from, to: caret, insert });
+
+  // Juste après une formule : la barre couvre toute la formule.
+  const closing = mathRanges(head).find((r) => r.to === head.length);
+  if (closing) {
+    const content = head.slice(closing.start, closing.end);
+    const open = head.slice(closing.from, closing.start);
+    const close = head.slice(closing.end, closing.to);
+    const inner = `\\overline{${content}}`;
+    return done(closing.from, open + inner + close, closing.from + open.length + inner.length - 1);
+  }
+  const baseStart = baseStartOf(head);
+  if (baseStart < 0) return undefined;
+  const base = head.slice(baseStart);
+  const inMath = Boolean(rangeAt(text, baseStart));
+  if (!inMath && !BAR_BASE.test(base) && !/[)\]}]$/.test(base)) return null;
+  const inner = `\\overline{${base}}`;
+  const wrapped = inMath ? inner : `$${inner}$`;
+  // Curseur juste après la base, dans la barre : on peut encore l'allonger, Tab en sort.
+  return done(baseStart, wrapped, baseStart + (inMath ? 0 : 1) + inner.length - 1);
 }
 
 // Début de la « base » qui termine `head` : un mot ou nombre (u, x2, 10), ou un

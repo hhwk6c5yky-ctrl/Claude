@@ -47,10 +47,13 @@ export const SYMBOL_GROUPS = [
       { label: '∑ série', insert: '\\sum_{n=|}^{+\\infty}', hint: 'Série : n = … à +∞' },
       { label: 'lim', insert: '\\lim_{x \\to |}', hint: 'Limite' },
       { label: 'u →', insert: '\\vec{|}', hint: 'Vecteur' },
+      { label: 'ā', insert: '\\overline{|}', hint: 'Barre au-dessus' },
+      { label: '|x|', insert: '\\left\\lvert{|}\\right\\rvert', hint: 'Valeur absolue' },
+      { label: '∞', insert: '\\infty', hint: 'Infini' },
       { label: '( )', insert: '\\left( | \\right)', hint: 'Grandes parenthèses' },
       { label: '$$…$$', insert: '$$|$$', hint: 'Formule centrée' },
     ],
-    help: 'Raccourcis : tape sum, frac, sqrt, vect, int, lim, prod, ind (indice) ou exp (exposant) puis Espace. Tab passe à la case suivante, puis sort de la formule.',
+    help: 'Raccourcis : tape sum, frac, sqrt, vect, int, lim, prod, abs (valeur absolue), inf (∞), ind (indice), exp (exposant) ou « z bar » (barre) puis Espace. Tab passe à la case suivante, puis sort de la formule.',
   },
 ];
 

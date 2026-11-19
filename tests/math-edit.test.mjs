@@ -77,3 +77,33 @@ test('ind / exp / exxp : indice et exposant collés à ce qui précède', () => 
   assert.equal(expandKeyword('find', 4), null);
   assert.equal(expandKeyword('index', 5), null);
 });
+
+test('bar : barre au-dessus d’une lettre, d’un groupe ou d’une formule, pas d’un mot', () => {
+  const cur = (r) => r.text.slice(0, r.caret);
+  let r = expandKeyword('soit z bar', 10);
+  assert.equal(r.text, 'soit $\\overline{z}$');
+  assert.equal(cur(r), 'soit $\\overline{z', 'curseur dans la barre');
+  assert.equal(expandKeyword('(a+b) bar', 9).text, '$\\overline{(a+b)}$');
+  assert.equal(expandKeyword('$x+y$ bar', 9).text, '$\\overline{x+y}$');
+  assert.equal(expandKeyword('$a + z bar$', 10).text, '$a + \\overline{z}$', 'dans une formule');
+  r = expandKeyword('bar', 3);
+  assert.equal(r.text, '$\\overline{}$');
+  assert.equal(cur(r), '$\\overline{');
+  assert.equal(expandKeyword('je vais au bar', 14), null, '« au bar » reste du texte');
+  assert.equal(expandKeyword('Le Bar', 6), null);
+  // Tab sort de la barre
+  assert.equal(nextBox('$\\overline{z}$ et', '$\\overline{z'.length), '$\\overline{z}$'.length);
+});
+
+test('abs et inf', () => {
+  const cur = (r) => r.text.slice(0, r.caret);
+  let r = expandKeyword('soit abs', 8);
+  assert.equal(r.text, 'soit $\\left\\lvert{}\\right\\rvert$');
+  assert.equal(cur(r), 'soit $\\left\\lvert{', 'curseur entre les barres');
+  r = expandKeyword('x tend vers inf', 15);
+  assert.equal(r.text, 'x tend vers $\\infty$ ');
+  assert.equal(cur(r), 'x tend vers $\\infty$ ', 'curseur après la formule et l’espace');
+  assert.equal(expandKeyword('$x \\to inf$', 10).text, '$x \\to \\infty $');
+  assert.equal(expandKeyword('infini', 6), null);
+  assert.equal(expandKeyword('absolu', 6), null);
+});
