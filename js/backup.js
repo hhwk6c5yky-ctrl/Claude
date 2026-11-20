@@ -11,6 +11,8 @@ export async function buildBackup(deckIds = null) {
   let decks = await db.getDecks();
   if (deckIds) decks = decks.filter((d) => deckIds.includes(d.id));
   const keep = new Set(decks.map((d) => d.id));
+  const usedFolders = new Set(decks.map((d) => d.folderId).filter(Boolean));
+  const folders = (await db.getFolders()).filter((f) => !deckIds || usedFolders.has(f.id));
   const cards = (await db.getAllCards()).filter((c) => keep.has(c.deckId));
   const logs = (await db.getAllLogs()).filter((l) => keep.has(l.deckId));
   const ids = [...new Set(cards.flatMap(db.imageIds))];
@@ -25,6 +27,7 @@ export async function buildBackup(deckIds = null) {
     format: BACKUP_FORMAT,
     version: BACKUP_VERSION,
     exportedAt: new Date().toISOString(),
+    folders,
     decks,
     cards,
     images,
@@ -40,9 +43,10 @@ export async function restoreBackup(json) {
   const images = (data.images || []).map((img) => ({ ...img, data: base64ToBuffer(img.data) }));
   // Une restauration est un choix délibéré : elle doit aussi l'emporter sur les autres appareils synchronisés.
   const now = Date.now();
+  const folders = (data.folders || []).map((f) => ({ ...f, updatedAt: now }));
   const decks = (data.decks || []).map((d) => ({ ...d, updatedAt: now }));
   const cards = (data.cards || []).map((c) => ({ ...c, updatedAt: now }));
-  await db.bulkImport({ decks, cards, images, logs: data.logs || [] });
+  await db.bulkImport({ folders, decks, cards, images, logs: data.logs || [] });
   return { decks: (data.decks || []).length, cards: (data.cards || []).length, images: images.length };
 }
 

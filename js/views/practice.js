@@ -1,6 +1,8 @@
-// Entraînement libre : parcourt tout le paquet sans toucher au planning de révision.
+// Entraînement libre : parcourt tout un paquet, ou tout un dossier, sans toucher
+// au planning de révision.
 // Les cartes ratées reviennent un peu plus loin jusqu'à ce qu'elles soient sues.
-import * as db from '../db.js';
+import { loadScope } from '../store.js';
+import { byPosition } from '../session.js';
 import { checkAnswer } from '../answer.js';
 import { h, icon, plural } from '../ui.js';
 import { goBack } from '../router.js';
@@ -19,19 +21,20 @@ const DIRECTIONS = [
   { id: 'mixed', label: 'Les deux, au hasard' },
 ];
 
-export async function practiceView({ deckId }) {
-  const deck = await db.getDeck(deckId);
-  if (!deck) throw new Error('Ce paquet n’existe plus.');
-  const allCards = (await db.getCards(deckId)).sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
+export async function practiceView({ deckId, folderId }) {
+  const scope = await loadScope({ deckId, folderId });
+  const deckRank = new Map(scope.decks.map((d, i) => [d.id, i]));
+  const allCards = [...scope.cards].sort(byPosition(deckRank)); // ordre trié : paquet par paquet
+  const isFolder = scope.kind === 'folder';
   const body = h('div.practice');
-  const options = { mode: 'flip', direction: 'forward', shuffle: true };
+  const options = { mode: 'flip', direction: 'forward', shuffle: scope.shuffle };
   let cleanupKeys = () => {};
 
   const setup = (subset = null) => {
     cleanupKeys();
     const pool = subset || allCards;
     if (!pool.length) {
-      body.replaceChildren(h('div.study-message', h('h2', 'Ce paquet est vide'), h('p', 'Ajoute des cartes pour pouvoir t’entraîner.')));
+      body.replaceChildren(h('div.study-message', h('h2', isFolder ? 'Ce dossier ne contient aucune carte' : 'Ce paquet est vide'), h('p', 'Ajoute des cartes pour pouvoir t’entraîner.')));
       return;
     }
     const radio = (name, list, key) =>
@@ -50,7 +53,7 @@ export async function practiceView({ deckId }) {
     body.replaceChildren(
       h(
         'div.practice-setup',
-        h('p.lead', subset ? `On reprend les ${plural(pool.length, 'carte')} à retravailler.` : `Entraîne-toi sur les ${plural(pool.length, 'carte')} du paquet. Ton planning de révision n’est pas modifié.`),
+        h('p.lead', subset ? `On reprend les ${plural(pool.length, 'carte')} à retravailler.` : `Entraîne-toi sur les ${plural(pool.length, 'carte')} ${isFolder ? `du dossier (${plural(scope.decks.length, 'paquet')})` : 'du paquet'}. Ton planning de révision n’est pas modifié.`),
         radio('Mode', MODES, 'mode'),
         radio('Sens', DIRECTIONS, 'direction'),
         shuffle,
@@ -225,7 +228,7 @@ export async function practiceView({ deckId }) {
       controls.replaceChildren(
         h(
           'div.button-row',
-          h('button.btn', { type: 'button', onclick: () => goBack(`deck/${deckId}`) }, 'Retour au paquet'),
+          h('button.btn', { type: 'button', onclick: () => goBack(scope.back) }, isFolder ? 'Retour au dossier' : 'Retour au paquet'),
           missed.length ? h('button.btn.primary', { type: 'button', onclick: () => setup(missed.map((m) => m.card)) }, `Retravailler (${missed.length})`) : h('button.btn.primary', { type: 'button', onclick: () => setup() }, 'Recommencer'),
         ),
       );
@@ -256,7 +259,7 @@ export async function practiceView({ deckId }) {
   setup();
 
   return {
-    el: screen({ title: 'Entraînement libre', subtitle: deck.name, back: `deck/${deckId}`, body, actions: [h('button.icon-btn', { type: 'button', 'aria-label': 'Changer les options', title: 'Options', onclick: () => setup() }, icon('settings'))], className: 'practice-screen' }),
+    el: screen({ title: 'Entraînement libre', subtitle: isFolder ? `Dossier ${scope.title}` : scope.title, back: scope.back, body, actions: [h('button.icon-btn', { type: 'button', 'aria-label': 'Changer les options', title: 'Options', onclick: () => setup() }, icon('settings'))], className: 'practice-screen' }),
     destroy: () => cleanupKeys(),
   };
 }

@@ -1,5 +1,6 @@
 import * as db from '../db.js';
-import { DECK_DEFAULTS, deckSummary, getSettings, resetProgress, todayActivity } from '../store.js';
+import { DECK_DEFAULTS, byName, createFolder, deckSummary, getSettings, resetProgress, todayActivity } from '../store.js';
+import { orderToggle } from './folder.js';
 import { confirmDialog, h, icon, modal, plural, toast } from '../ui.js';
 import { navigate } from '../router.js';
 import { countLabel, dueChips, emptyState, screen, sideSnippet, stateLabel } from './common.js';
@@ -11,7 +12,8 @@ import { formatDuration } from '../srs.js';
 export async function deckView({ deckId }) {
   const deck = await db.getDeck(deckId);
   if (!deck) throw new Error('Ce paquet n’existe plus.');
-  const [cards, settings] = await Promise.all([db.getCards(deckId), getSettings()]);
+  const [cards, settings, folder] = await Promise.all([db.getCards(deckId), getSettings(), deck.folderId ? db.getFolder(deck.folderId) : null]);
+  const home = folder ? `folder/${folder.id}` : '';
   const activity = await todayActivity(settings);
   const now = Date.now();
   const sum = deckSummary(deck, cards, activity.byDeck.get(deckId), settings, now);
@@ -31,6 +33,17 @@ export async function deckView({ deckId }) {
     'section.deck-hero',
     deck.description ? h('p.deck-desc', deck.description) : null,
     dueChips(sum.due),
+    cards.length > 1
+      ? h(
+          'div.field',
+          h('span.label', 'Ordre des cartes'),
+          orderToggle(Boolean(deck.shuffle), async (shuffle) => {
+            await db.putDeck({ ...deck, shuffle });
+            deck.shuffle = shuffle;
+            toast(shuffle ? 'Les cartes seront mélangées en révision et en entraînement.' : 'Les cartes seront présentées dans l’ordre.');
+          }),
+        )
+      : null,
     h(
       'div.deck-cta',
       h('button.btn.primary.big', { type: 'button', disabled: !sum.dueTotal, onclick: () => navigate(`deck/${deckId}/study`) }, icon('play'), studyLabel),
@@ -89,7 +102,7 @@ export async function deckView({ deckId }) {
         ],
       });
 
-  return { el: screen({ title: deck.name, back: '', actions: [menuBtn], body: [hero, cardsSection], className: 'deck' }) };
+  return { el: screen({ title: deck.name, subtitle: folder ? `Dossier ${folder.name}` : undefined, back: home, actions: [menuBtn], body: [hero, cardsSection], className: 'deck' }) };
 }
 
 function progressBar(sum) {
@@ -126,6 +139,7 @@ function deckMenu(deck, cards) {
       'div.menu',
       item('edit', 'Renommer et réglages du paquet', () => deckSettingsDialog(deck)),
       item('import', 'Importer des cartes dans ce paquet', () => navigate(`import/${deck.id}`)),
+      item('move', 'Ranger dans un dossier', () => moveToFolderDialog(deck)),
       item('export', 'Sauvegarder ce paquet (avec images)', async () => {
         try {
           const data = await buildBackup([deck.id]);
@@ -148,7 +162,7 @@ function deckMenu(deck, cards) {
           for (const c of cards) for (const id of db.imageIds(c)) forgetImage(id);
           await db.deleteDeck(deck.id);
           toast('Paquet supprimé.');
-          navigate('', { replace: true });
+          navigate(deck.folderId ? `folder/${deck.folderId}` : '', { replace: true });
         }
       }, 'danger'),
     ),
@@ -215,4 +229,48 @@ export function clampInt(v, min, max, fallback) {
   const n = parseInt(v, 10);
   if (Number.isNaN(n)) return fallback;
   return Math.min(max, Math.max(min, n));
+}
+
+/** Ranger le paquet dans un dossier (ou le sortir de son dossier). */
+async function moveToFolderDialog(deck) {
+  const folders = (await db.getFolders()).sort(byName);
+  const select = h(
+    'select.input',
+    { id: 'move-folder' },
+    h('option', { value: '' }, 'Aucun dossier (accueil)'),
+    folders.map((f) => h('option', { value: f.id, selected: f.id === deck.folderId }, f.name)),
+    h('option', { value: '__new' }, 'Nouveau dossier…'),
+  );
+  const newName = h('input.input', { id: 'move-new-folder', type: 'text', placeholder: 'Nom du nouveau dossier', maxlength: 120, autocomplete: 'off', hidden: true });
+  select.addEventListener('change', () => {
+    newName.hidden = select.value !== '__new';
+    if (!newName.hidden) newName.focus();
+  });
+  modal({
+    title: 'Ranger dans un dossier',
+    body: h('div.form', h('label.field', h('span.label', 'Dossier'), select), newName),
+    actions: [
+      { label: 'Annuler', value: false },
+      {
+        label: 'Ranger',
+        kind: 'primary',
+        onClick: async () => {
+          let folderId = select.value || null;
+          if (folderId === '__new') {
+            if (!newName.value.trim()) {
+              toast('Donne un nom au nouveau dossier.');
+              newName.focus();
+              return false;
+            }
+            folderId = (await createFolder(newName.value)).id;
+          }
+          await db.putDeck({ ...deck, folderId });
+          const target = folders.find((f) => f.id === folderId)?.name || newName.value.trim();
+          toast(folderId ? `Paquet rangé dans « ${target} ».` : 'Paquet remis sur l’accueil.');
+          navigate(`deck/${deck.id}`, { replace: true });
+          return true;
+        },
+      },
+    ],
+  });
 }

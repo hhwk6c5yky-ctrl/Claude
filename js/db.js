@@ -1,14 +1,15 @@
 // Stockage local dans IndexedDB. Rien ne quitte l'appareil.
 //
 // Magasins :
-//   decks  { id, name, description, newPerDay, reviewsPerDay, createdAt, updatedAt }
+//   folders { id, name, shuffle, createdAt, updatedAt }
+//   decks  { id, name, description, folderId, shuffle, newPerDay, reviewsPerDay, createdAt, updatedAt }
 //   cards  { id, deckId, front:{text,imageId}, back:{text,imageId}, position, createdAt, updatedAt, srs }
 //   images { id, data:ArrayBuffer, type, width, height }
 //   logs   { id, cardId, deckId, rating, ts, prevState, interval }
 //   meta   { key, value }
 
 const DB_NAME = 'mnemo';
-const DB_VERSION = 1;
+const DB_VERSION = 2; // 2 : ajout des dossiers
 let dbPromise = null;
 
 // ---------- Suivi des changements (pour la synchronisation) ----------
@@ -67,6 +68,7 @@ function open() {
     req.onupgradeneeded = () => {
       const db = req.result;
       if (!db.objectStoreNames.contains('decks')) db.createObjectStore('decks', { keyPath: 'id' });
+      if (!db.objectStoreNames.contains('folders')) db.createObjectStore('folders', { keyPath: 'id' });
       if (!db.objectStoreNames.contains('cards')) {
         const cards = db.createObjectStore('cards', { keyPath: 'id' });
         cards.createIndex('deckId', 'deckId');
@@ -151,6 +153,24 @@ export async function deleteDeck(id) {
   notify();
 }
 
+// ---------- Dossiers ----------
+
+export const getFolders = () => tx('folders', 'readonly', (s) => promisify(s.folders.getAll()));
+export const getFolder = (id) => tx('folders', 'readonly', (s) => promisify(s.folders.get(id)));
+export const putFolder = (folder) => tx('folders', 'readwrite', (s) => promisify(s.folders.put({ ...folder, updatedAt: Date.now() }))).then(notify);
+
+/** Supprime un dossier ; ses paquets ne sont pas supprimés, ils reviennent à l'accueil. */
+export async function deleteFolder(id) {
+  const decks = (await getDecks()).filter((d) => d.folderId === id);
+  const now = Date.now();
+  await tx(['folders', 'decks'], 'readwrite', (s) => {
+    s.folders.delete(id);
+    for (const d of decks) s.decks.put({ ...d, folderId: null, updatedAt: now });
+  });
+  await addTombstones([`folder:${id}`]);
+  notify();
+}
+
 // ---------- Cartes ----------
 
 export const getCards = (deckId) => tx('cards', 'readonly', (s) => promisify(s.cards.index('deckId').getAll(deckId)));
@@ -204,8 +224,9 @@ export const setMeta = (key, value) => tx('meta', 'readwrite', (s) => promisify(
 
 // ---------- Sauvegarde / restauration en bloc ----------
 
-export async function bulkImport({ decks = [], cards = [], images = [], logs = [] }, { silent = false } = {}) {
-  await tx(['decks', 'cards', 'images', 'logs'], 'readwrite', (s) => {
+export async function bulkImport({ folders = [], decks = [], cards = [], images = [], logs = [] }, { silent = false } = {}) {
+  await tx(['folders', 'decks', 'cards', 'images', 'logs'], 'readwrite', (s) => {
+    for (const f of folders) s.folders.put(f);
     for (const d of decks) s.decks.put(d);
     for (const c of cards) s.cards.put(c);
     for (const i of images) s.images.put(i);
@@ -215,9 +236,10 @@ export async function bulkImport({ decks = [], cards = [], images = [], logs = [
 }
 
 /** Applique des suppressions venues d'un autre appareil (sans les re-signaler). */
-export async function applyRemoteDeletes({ deckIds = [], cardIds = [] }) {
-  if (!deckIds.length && !cardIds.length) return;
-  await tx(['decks', 'cards', 'images'], 'readwrite', async (s) => {
+export async function applyRemoteDeletes({ folderIds = [], deckIds = [], cardIds = [] }) {
+  if (!folderIds.length && !deckIds.length && !cardIds.length) return;
+  await tx(['folders', 'decks', 'cards', 'images'], 'readwrite', async (s) => {
+    for (const id of folderIds) s.folders.delete(id);
     for (const id of deckIds) s.decks.delete(id);
     for (const id of cardIds) {
       const card = await promisify(s.cards.get(id));

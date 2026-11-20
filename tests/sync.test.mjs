@@ -74,3 +74,15 @@ test('les pointeurs d’images (i_…) sont ignorés par la fusion', () => {
   const p = planSync({ decks: [], cards: [], remote });
   assert.equal(p.push.length + p.pullCards.length + p.pullDecks.length, 0);
 });
+
+test('dossiers : envoyés, reçus et supprimés comme les paquets', () => {
+  const folder = { id: 'f1', name: 'Bac', updatedAt: 5 };
+  let p = planSync({ folders: [folder], decks: [], cards: [], remote: new Map() });
+  assert.deepEqual(p.push.map(([id]) => id), ['f_f1']);
+  p = planSync({ folders: [], decks: [], cards: [], remote: remoteOf([['f_f1', { kind: 'folder', data: folder, updatedAt: 5 }]]) });
+  assert.deepEqual(p.pullFolders.map((f) => f.id), ['f1']);
+  p = planSync({ folders: [folder], decks: [], cards: [], remote: remoteOf([['f_f1', { kind: 'folder', deleted: true, updatedAt: 9 }]]) });
+  assert.deepEqual(p.deleteFolderIds, ['f1']);
+  p = planSync({ folders: [], decks: [], cards: [], tombstones: { 'folder:f1': 8 }, remote: remoteOf([['f_f1', { kind: 'folder', data: folder, updatedAt: 5 }]]) });
+  assert.deepEqual(p.push, [['f_f1', { kind: 'folder', deleted: true, updatedAt: 8 }]]);
+});

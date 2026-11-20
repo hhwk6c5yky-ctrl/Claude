@@ -33,6 +33,57 @@ export async function createDeck(name, extra = {}) {
   return deck;
 }
 
+// ---------- Dossiers ----------
+
+export async function createFolder(name) {
+  const now = Date.now();
+  const folder = { id: db.uid(), name: name.trim() || 'Sans titre', shuffle: false, createdAt: now, updatedAt: now };
+  await db.putFolder(folder);
+  return folder;
+}
+
+export const byName = (a, b) => a.name.localeCompare(b.name, 'fr', { numeric: true, sensitivity: 'base' });
+
+/**
+ * Ce qu'on révise : un paquet, ou tous les paquets d'un dossier.
+ * @returns {{kind:'deck'|'folder', id, title, back, decks, cardsByDeck, cards, shuffle, practice, study}}
+ */
+export async function loadScope({ deckId, folderId }) {
+  if (folderId) {
+    const folder = await db.getFolder(folderId);
+    if (!folder) throw new Error('Ce dossier n’existe plus.');
+    const decks = (await db.getDecks()).filter((d) => d.folderId === folderId).sort(byName);
+    const cardsByDeck = new Map(await Promise.all(decks.map(async (d) => [d.id, await db.getCards(d.id)])));
+    return {
+      kind: 'folder',
+      id: folderId,
+      title: folder.name,
+      back: `folder/${folderId}`,
+      decks,
+      cardsByDeck,
+      cards: decks.flatMap((d) => cardsByDeck.get(d.id)),
+      shuffle: Boolean(folder.shuffle),
+      practice: `folder/${folderId}/practice`,
+      study: `folder/${folderId}/study`,
+    };
+  }
+  const deck = await db.getDeck(deckId);
+  if (!deck) throw new Error('Ce paquet n’existe plus.');
+  const cards = await db.getCards(deckId);
+  return {
+    kind: 'deck',
+    id: deckId,
+    title: deck.name,
+    back: `deck/${deckId}`,
+    decks: [deck],
+    cardsByDeck: new Map([[deckId, cards]]),
+    cards,
+    shuffle: Boolean(deck.shuffle),
+    practice: `deck/${deckId}/practice`,
+    study: `deck/${deckId}/study`,
+  };
+}
+
 export function makeCard(deckId, front, back, position = Date.now()) {
   const now = Date.now();
   return {

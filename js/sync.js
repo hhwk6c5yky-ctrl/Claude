@@ -190,15 +190,15 @@ async function run() {
 }
 
 async function reconcile() {
-  const [decks, cards, tombstones, imageKeys] = await Promise.all([db.getDecks(), db.getAllCards(), db.getTombstones(), db.getImageKeys()]);
-  const plan = planSync({ decks, cards, tombstones, remote });
+  const [folders, decks, cards, tombstones, imageKeys] = await Promise.all([db.getFolders(), db.getDecks(), db.getAllCards(), db.getTombstones(), db.getImageKeys()]);
+  const plan = planSync({ folders, decks, cards, tombstones, remote });
 
   // 1. Appliquer localement ce qui vient des autres appareils.
-  const changedLocally = plan.pullDecks.length || plan.pullCards.length || plan.deleteDeckIds.length || plan.deleteCardIds.length;
-  if (plan.pullDecks.length || plan.pullCards.length) {
-    await db.bulkImport({ decks: plan.pullDecks, cards: plan.pullCards }, { silent: true });
+  const changedLocally = plan.pullFolders.length || plan.pullDecks.length || plan.pullCards.length || plan.deleteFolderIds.length || plan.deleteDeckIds.length || plan.deleteCardIds.length;
+  if (plan.pullFolders.length || plan.pullDecks.length || plan.pullCards.length) {
+    await db.bulkImport({ folders: plan.pullFolders, decks: plan.pullDecks, cards: plan.pullCards }, { silent: true });
   }
-  await db.applyRemoteDeletes({ deckIds: plan.deleteDeckIds, cardIds: plan.deleteCardIds });
+  await db.applyRemoteDeletes({ folderIds: plan.deleteFolderIds, deckIds: plan.deleteDeckIds, cardIds: plan.deleteCardIds });
   if (plan.clearTombstones.length) await db.clearTombstones(plan.clearTombstones);
 
   // 2. Envoyer les changements locaux.

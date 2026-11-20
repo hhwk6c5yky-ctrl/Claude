@@ -8,6 +8,7 @@ import { requestPersistence } from './db.js';
 import { initSync } from './sync.js';
 import { homeView } from './views/home.js';
 import { deckView } from './views/deck.js';
+import { folderView } from './views/folder.js';
 import { editorView } from './views/editor.js';
 import { studyView } from './views/study.js';
 import { practiceView } from './views/practice.js';
@@ -20,6 +21,9 @@ const routes = [
   ['deck/:deckId', deckView],
   ['deck/:deckId/study', studyView],
   ['deck/:deckId/practice', practiceView],
+  ['folder/:folderId', folderView],
+  ['folder/:folderId/study', studyView],
+  ['folder/:folderId/practice', practiceView],
   ['deck/:deckId/card/:cardId', editorView],
   ['import', importView],
   ['import/:deckId', importView],
@@ -98,7 +102,7 @@ async function start() {
   // Données reçues d'un autre appareil : rafraîchit les écrans de consultation (jamais une révision en cours).
   window.addEventListener('mnemo:remote-change', () => {
     const path = currentPath();
-    if (path === '' || /^deck\/[^/]+$/.test(path) || path === 'settings') render(path);
+    if (path === '' || /^(deck|folder)\/[^/]+$/.test(path) || path === 'settings') render(path);
   });
   requestPersistence();
   if (!isEmbedded && 'serviceWorker' in navigator && location.protocol === 'https:') {
