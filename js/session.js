@@ -4,19 +4,20 @@ import { DEFAULT_SETTINGS, MINUTE, isLearning, schedule } from './srs.js';
 export class StudySession {
   /**
    * @param {Array} cards  cartes du paquet (chaque carte a un champ `srs`)
-   * @param {object} opts  { now, newLimit, reviewLimit, settings }
+   * @param {object} opts  { now, newLimit, reviewLimit, settings, shuffle, rng, deckRank }
+   *   shuffle  : nouvelles cartes et révisions dans un ordre aléatoire
+   *   deckRank : Map idPaquet → rang, pour garder l'ordre des paquets d'un dossier
    */
-  constructor(cards, { now = Date.now(), newLimit = 20, reviewLimit = 200, settings = DEFAULT_SETTINGS } = {}) {
+  constructor(cards, { now = Date.now(), newLimit = 20, reviewLimit = 200, settings = DEFAULT_SETTINGS, shuffle = false, rng = Math.random, deckRank = null } = {}) {
     this.settings = { ...DEFAULT_SETTINGS, ...settings };
     this.learn = cards.filter((c) => isLearning(c.srs)).sort(byDue);
-    this.review = cards
+    const review = cards
       .filter((c) => c.srs.state === 'review' && c.srs.due <= now)
       .sort(byDue)
       .slice(0, Math.max(0, reviewLimit));
-    this.fresh = cards
-      .filter((c) => c.srs.state === 'new')
-      .sort((a, b) => (a.position ?? a.createdAt ?? 0) - (b.position ?? b.createdAt ?? 0))
-      .slice(0, Math.max(0, newLimit));
+    this.review = shuffle ? shuffled(review, rng) : review;
+    const fresh = cards.filter((c) => c.srs.state === 'new');
+    this.fresh = (shuffle ? shuffled(fresh, rng) : fresh.sort(byPosition(deckRank))).slice(0, Math.max(0, newLimit));
     this.sinceNew = 0;
     this.answered = 0;
     this.history = [];
@@ -127,6 +128,48 @@ export class StudySession {
 
 function byDue(a, b) {
   return a.srs.due - b.srs.due;
+}
+
+/** Ordre « trié » : paquet par paquet, puis dans l'ordre des cartes. */
+export function byPosition(deckRank = null) {
+  const rank = (c) => (deckRank ? deckRank.get(c.deckId) ?? 0 : 0);
+  return (a, b) => rank(a) - rank(b) || (a.position ?? a.createdAt ?? 0) - (b.position ?? b.createdAt ?? 0);
+}
+
+export function shuffled(list, rng = Math.random) {
+  const a = [...list];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+/**
+ * Cartes d'une séance sur un ou plusieurs paquets (un dossier), en respectant
+ * les limites quotidiennes de chaque paquet.
+ * @param {Array} decks paquets, dans l'ordre voulu
+ * @param {Map<string, Array>} cardsByDeck cartes de chaque paquet
+ * @param {Map<string, {fresh:number, review:number}>} doneByDeck déjà fait aujourd'hui
+ * @param {{now?:number, shuffle?:boolean, rng?:() => number, extraNew?:number}} opts
+ *   extraNew : au lieu des limites, prendre ce nombre de nouvelles cartes en plus
+ */
+export function selectForSession(decks, cardsByDeck, doneByDeck, { now = Date.now(), shuffle = false, rng = Math.random, extraNew = 0 } = {}) {
+  const deckRank = new Map(decks.map((d, i) => [d.id, i]));
+  const out = [];
+  const allFresh = [];
+  for (const deck of decks) {
+    const cards = cardsByDeck.get(deck.id) || [];
+    const done = doneByDeck.get(deck.id) || { fresh: 0, review: 0 };
+    out.push(...cards.filter((c) => isLearning(c.srs)));
+    const due = cards.filter((c) => c.srs.state === 'review' && c.srs.due <= now).sort(byDue);
+    out.push(...due.slice(0, Math.max(0, (deck.reviewsPerDay ?? 200) - done.review)));
+    const fresh = cards.filter((c) => c.srs.state === 'new');
+    if (extraNew) allFresh.push(...fresh);
+    else out.push(...(shuffle ? shuffled(fresh, rng) : fresh.sort(byPosition())).slice(0, Math.max(0, (deck.newPerDay ?? 20) - done.fresh)));
+  }
+  if (extraNew) out.push(...(shuffle ? shuffled(allFresh, rng) : allFresh.sort(byPosition(deckRank))).slice(0, extraNew));
+  return { cards: out, deckRank };
 }
 
 function remove(list, id) {

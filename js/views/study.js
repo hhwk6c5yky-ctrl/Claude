@@ -1,6 +1,6 @@
 import * as db from '../db.js';
-import { DECK_DEFAULTS, getPrefs, getSettings, recordAnswer, savePrefs, todayActivity, undoAnswer } from '../store.js';
-import { StudySession } from '../session.js';
+import { getPrefs, getSettings, loadScope, recordAnswer, savePrefs, todayActivity, undoAnswer } from '../store.js';
+import { StudySession, selectForSession } from '../session.js';
 import { Rating, formatDuration, previewIntervals } from '../srs.js';
 import { checkAnswer } from '../answer.js';
 import { h, icon, plural, toast } from '../ui.js';
@@ -15,12 +15,12 @@ const RATINGS = [
   { value: Rating.Easy, label: 'Facile', key: '4', cls: 'easy' },
 ];
 
-export async function studyView({ deckId }) {
-  const deck = await db.getDeck(deckId);
-  if (!deck) throw new Error('Ce paquet n’existe plus.');
-  const [cards, settings, prefs] = await Promise.all([db.getCards(deckId), getSettings(), getPrefs()]);
+/** Révision d'un paquet (deckId) ou de tous les paquets d'un dossier (folderId). */
+export async function studyView({ deckId, folderId }) {
+  let scope = await loadScope({ deckId, folderId });
+  const [settings, prefs] = await Promise.all([getSettings(), getPrefs()]);
   const activity = await todayActivity(settings);
-  const done = activity.byDeck.get(deckId) || { fresh: 0, review: 0 };
+  const deckNames = new Map(scope.decks.map((d) => [d.id, d.name]));
 
   let typeAnswer = prefs.typeAnswer;
   const startedAt = Date.now();
@@ -33,13 +33,14 @@ export async function studyView({ deckId }) {
   let waitTimer = null;
   let busy = false;
 
-  const build = (newLimit = Math.max(0, (deck.newPerDay ?? DECK_DEFAULTS.newPerDay) - done.fresh)) => {
-    session = new StudySession(cards, {
-      now: Date.now(),
-      newLimit,
-      reviewLimit: Math.max(0, (deck.reviewsPerDay ?? DECK_DEFAULTS.reviewsPerDay) - done.review),
-      settings,
-    });
+  // Dans un dossier, on rappelle de quel paquet vient la carte.
+  const deckTag = (card) => (scope.kind === 'folder' ? h('p.card-deck', deckNames.get(card.deckId) || '') : null);
+
+  // Limites quotidiennes appliquées paquet par paquet, puis ordre trié ou mélangé.
+  const build = (extraNew = 0) => {
+    const now = Date.now();
+    const pick = selectForSession(scope.decks, scope.cardsByDeck, activity.byDeck, { now, shuffle: scope.shuffle, extraNew });
+    session = new StudySession(pick.cards, { now, newLimit: Infinity, reviewLimit: Infinity, settings, shuffle: scope.shuffle, deckRank: pick.deckRank });
   };
   build();
 
@@ -49,7 +50,7 @@ export async function studyView({ deckId }) {
   const controls = h('div.study-controls');
 
   const undoBtn = h('button.icon-btn', { type: 'button', 'aria-label': 'Annuler la dernière réponse', title: 'Annuler (Z)', disabled: true, onclick: () => undo() }, icon('undo'));
-  const editBtn = h('button.icon-btn', { type: 'button', 'aria-label': 'Modifier cette carte', title: 'Modifier (E)', disabled: true, onclick: () => current && navigate(`deck/${deckId}/card/${current.card.id}`) }, icon('edit'));
+  const editBtn = h('button.icon-btn', { type: 'button', 'aria-label': 'Modifier cette carte', title: 'Modifier (E)', disabled: true, onclick: () => current && navigate(`deck/${current.card.deckId}/card/${current.card.id}`) }, icon('edit'));
   const typeBtn = h('button.icon-btn.toggle', {
     type: 'button',
     'aria-label': 'Écrire la réponse avant de la voir',
@@ -92,7 +93,7 @@ export async function studyView({ deckId }) {
   const renderQuestion = () => {
     updateCounts();
     const card = current.card;
-    const sheet = h('article.bristol.study-card', { 'aria-label': 'Question' }, cardFace(card.front, { size: 'large' }));
+    const sheet = h('article.bristol.study-card', { 'aria-label': 'Question' }, deckTag(card), cardFace(card.front, { size: 'large' }));
     sheet.addEventListener('click', (e) => {
       if (!e.target.closest('input, button, .zoomable')) reveal();
     });
@@ -134,6 +135,7 @@ export async function studyView({ deckId }) {
     const sheet = h(
       'article.bristol.study-card.revealed',
       { 'aria-label': 'Question et réponse' },
+      deckTag(card),
       cardFace(card.front, { size: 'large' }),
       h('hr.fold'),
       verdict,
@@ -219,7 +221,7 @@ export async function studyView({ deckId }) {
       ),
     );
     controls.replaceChildren(
-      h('div.button-row', h('button.btn', { type: 'button', onclick: () => goBack(`deck/${deckId}`) }, 'Terminer pour l’instant'), h('button.btn.primary', { type: 'button', onclick: () => { current = { card: next.card, queue: 'learn' }; revealed = false; typed = ''; clearInterval(waitTimer); renderQuestion(); } }, 'Revoir maintenant')),
+      h('div.button-row', h('button.btn', { type: 'button', onclick: () => goBack(scope.back) }, 'Terminer pour l’instant'), h('button.btn.primary', { type: 'button', onclick: () => { current = { card: next.card, queue: 'learn' }; revealed = false; typed = ''; clearInterval(waitTimer); renderQuestion(); } }, 'Revoir maintenant')),
     );
     tick();
     waitTimer = setInterval(tick, 1000);
@@ -229,7 +231,8 @@ export async function studyView({ deckId }) {
     current = null;
     updateCounts();
     const minutes = Math.max(1, Math.round((Date.now() - startedAt) / 60000));
-    const fresh = await db.getCards(deckId);
+    scope = await loadScope({ deckId, folderId });
+    const fresh = scope.cards;
     const leftNew = fresh.filter((c) => c.srs.state === 'new').length;
     const success = tally.total ? Math.round(((tally.total - tally.again) / tally.total) * 100) : null;
     stage.replaceChildren(
@@ -242,21 +245,20 @@ export async function studyView({ deckId }) {
         leftNew ? h('p.muted.small', `${plural(leftNew, 'nouvelle carte')} pas encore vue${leftNew > 1 ? 's' : ''} dans ce paquet.`) : null,
       ),
     );
-    const buttons = [h('button.btn', { type: 'button', onclick: () => goBack(`deck/${deckId}`) }, 'Retour au paquet')];
+    const buttons = [h('button.btn', { type: 'button', onclick: () => goBack(scope.back) }, scope.kind === 'folder' ? 'Retour au dossier' : 'Retour au paquet')];
     if (leftNew) {
       buttons.push(
         h('button.btn.primary', {
           type: 'button',
           onclick: async () => {
             // Dépasse la limite du jour : utile avant un contrôle.
-            cards.splice(0, cards.length, ...(await db.getCards(deckId)));
             build(10);
             show();
           },
         }, `Étudier ${Math.min(10, leftNew)} nouvelles cartes de plus`),
       );
     } else {
-      buttons.push(h('button.btn.primary', { type: 'button', onclick: () => navigate(`deck/${deckId}/practice`, { replace: true }) }, 'Entraînement libre'));
+      buttons.push(h('button.btn.primary', { type: 'button', onclick: () => navigate(scope.practice, { replace: true }) }, 'Entraînement libre'));
     }
     controls.replaceChildren(h('div.button-row', buttons));
   };
@@ -276,14 +278,15 @@ export async function studyView({ deckId }) {
     } else if (e.key === 'z' || e.key === 'Z') {
       undo();
     } else if ((e.key === 'e' || e.key === 'E') && current) {
-      navigate(`deck/${deckId}/card/${current.card.id}`);
+      navigate(`deck/${current.card.deckId}/card/${current.card.id}`);
     }
   };
   document.addEventListener('keydown', onKey);
 
   const el = screen({
-    title: deck.name,
-    back: `deck/${deckId}`,
+    title: scope.title,
+    subtitle: scope.kind === 'folder' ? `Dossier · ${scope.shuffle ? 'ordre mélangé' : 'ordre trié'}` : scope.shuffle ? 'Ordre mélangé' : undefined,
+    back: scope.back,
     actions: [typeBtn, editBtn, undoBtn],
     body: h('div.study', counts, stage, controls),
     className: 'study-screen',

@@ -2203,3 +2203,78 @@ textarea.input {
   color: var(--good);
   font-variant-numeric: tabular-nums;
 }
+
+/* ---------- Dossiers ---------- */
+
+.list-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.list-title {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-family: var(--font-body);
+}
+
+.folder-item {
+  background: var(--surface-2);
+  border-style: solid;
+  box-shadow: 3px -3px 0 -1px var(--surface-2), 3px -3px 0 0 var(--line), var(--shadow);
+}
+
+.folder-icon {
+  display: inline-grid;
+  vertical-align: -3px;
+  margin-right: 8px;
+  color: var(--accent);
+}
+
+.folder-icon .icon {
+  width: 20px;
+  height: 20px;
+}
+
+.fab-row {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.fab.secondary {
+  pointer-events: auto;
+  border-radius: 999px;
+  box-shadow: var(--shadow);
+}
+
+.check-list {
+  display: flex;
+  flex-direction: column;
+  max-height: 50vh;
+  overflow-y: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 4px 12px;
+}
+
+.check-list .check + .check {
+  border-top: 1px solid var(--line);
+}
+
+.card-deck {
+  align-self: center;
+  margin-top: -36px;
+  padding: 2px 10px;
+  border-radius: 99px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.cards-section .section-head {
+  flex-wrap: wrap;
+}

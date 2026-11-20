@@ -2,17 +2,21 @@
 // (fonction pure, testée sans navigateur). La modification la plus récente gagne.
 
 const KINDS = [
+  { kind: 'folder', prefix: 'f_' },
   { kind: 'deck', prefix: 'd_' },
   { kind: 'card', prefix: 'c_' },
 ];
+const PREFIX = Object.fromEntries(KINDS.map((k) => [k.kind, k.prefix]));
 
 /**
  * @param {{decks: object[], cards: object[], tombstones: Record<string, number>, remote: Map<string, object>}} input
  *   remote : documents distants { kind, data, updatedAt, deleted? } indexés par identifiant (d_…, c_…, i_…)
  */
-export function planSync({ decks, cards, tombstones = {}, remote }) {
+export function planSync({ folders = [], decks, cards, tombstones = {}, remote }) {
   const out = {
     push: [], // [docId, body]
+    pullFolders: [],
+    deleteFolderIds: [],
     pullDecks: [],
     pullCards: [],
     deleteDeckIds: [],
@@ -20,12 +24,18 @@ export function planSync({ decks, cards, tombstones = {}, remote }) {
     pushedTombstones: [], // à effacer localement une fois envoyées
     clearTombstones: [], // déjà connues à distance
   };
-  const local = { deck: new Map(decks.map((d) => [d.id, d])), card: new Map(cards.map((c) => [c.id, c])) };
+  const local = {
+    folder: new Map(folders.map((f) => [f.id, f])),
+    deck: new Map(decks.map((d) => [d.id, d])),
+    card: new Map(cards.map((c) => [c.id, c])),
+  };
+  const pulls = { folder: out.pullFolders, deck: out.pullDecks, card: out.pullCards };
+  const deletes = { folder: out.deleteFolderIds, deck: out.deleteDeckIds, card: out.deleteCardIds };
 
   for (const { kind, prefix } of KINDS) {
     const map = local[kind];
-    const pull = kind === 'deck' ? out.pullDecks : out.pullCards;
-    const del = kind === 'deck' ? out.deleteDeckIds : out.deleteCardIds;
+    const pull = pulls[kind];
+    const del = deletes[kind];
 
     for (const [id, rec] of map) {
       const docId = prefix + id;
@@ -64,8 +74,8 @@ export function planSync({ decks, cards, tombstones = {}, remote }) {
   // Pierres tombales sans document distant : rien à propager.
   for (const key of Object.keys(tombstones)) {
     const [kind, id] = key.split(':');
-    const prefix = kind === 'deck' ? 'd_' : 'c_';
-    if (!remote.has(prefix + id) && !local[kind]?.has(id)) out.clearTombstones.push(key);
+    const prefix = PREFIX[kind];
+    if (prefix && !remote.has(prefix + id) && !local[kind]?.has(id)) out.clearTombstones.push(key);
   }
   return out;
 }

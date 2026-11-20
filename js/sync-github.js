@@ -211,18 +211,21 @@ export function startGithubSync({ repo, token, setStatus }) {
     }
 
     // 2. Fusionner avec la copie locale.
-    const [decks, cards, tombstones] = await Promise.all([db.getDecks(), db.getAllCards(), db.getTombstones()]);
-    const plan = planSync({ decks, cards, tombstones, remote });
-    const changedLocally = plan.pullDecks.length || plan.pullCards.length || plan.deleteDeckIds.length || plan.deleteCardIds.length;
-    if (plan.pullDecks.length || plan.pullCards.length) await db.bulkImport({ decks: plan.pullDecks, cards: plan.pullCards }, { silent: true });
-    await db.applyRemoteDeletes({ deckIds: plan.deleteDeckIds, cardIds: plan.deleteCardIds });
+    const [folders, decks, cards, tombstones] = await Promise.all([db.getFolders(), db.getDecks(), db.getAllCards(), db.getTombstones()]);
+    const plan = planSync({ folders, decks, cards, tombstones, remote });
+    const changedLocally = plan.pullFolders.length || plan.pullDecks.length || plan.pullCards.length || plan.deleteFolderIds.length || plan.deleteDeckIds.length || plan.deleteCardIds.length;
+    if (plan.pullFolders.length || plan.pullDecks.length || plan.pullCards.length) {
+      await db.bulkImport({ folders: plan.pullFolders, decks: plan.pullDecks, cards: plan.pullCards }, { silent: true });
+    }
+    await db.applyRemoteDeletes({ folderIds: plan.deleteFolderIds, deckIds: plan.deleteDeckIds, cardIds: plan.deleteCardIds });
     if (plan.clearTombstones.length) await db.clearTombstones(plan.clearTombstones);
 
     // 3. Réécrire les fichiers de paquets qui ont des changements locaux.
     const byFile = new Map();
     for (const [docId, body] of plan.push) {
       let name;
-      if (body.kind === 'deck') name = `${docId.slice(2)}.json`;
+      if (body.kind === 'folder') name = '_dossiers.json'; // tous les dossiers dans un seul fichier
+      else if (body.kind === 'deck') name = `${docId.slice(2)}.json`;
       else if (body.data?.deckId) name = `${body.data.deckId}.json`;
       else name = owner.get(docId);
       if (!name) continue;
